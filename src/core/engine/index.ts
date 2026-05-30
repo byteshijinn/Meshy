@@ -21,6 +21,7 @@ import { createDefaultToolPackRegistry } from '../tool/tool-pack.js';
 import { z } from 'zod';
 import { loadConfig } from '../../config/index.js';
 import { executeDelegate } from '../tool/delegate-tool.js';
+import { formatSubagentManagerPrompt } from '../subagents/prompt.js';
 import { Workspace } from '../workspace/workspace.js';
 import { WorkerAgent } from './worker.js';
 import { SecurityGuard } from '../security/guard.js';
@@ -187,7 +188,7 @@ export class TaskEngine {
         this.router = new IntentRouter(this.providerResolver);
         this.skillRegistry = new SkillRegistry();
         this.skillRegistry.scan(workspace.rootPath);
-        this.subagentRegistry = new SubagentRegistry();
+        this.subagentRegistry = new SubagentRegistry(workspace.rootPath);
         this.toolRegistry = createDefaultRegistry();
 
         const toolPackRegistry = createDefaultToolPackRegistry();
@@ -1392,10 +1393,14 @@ export class TaskEngine {
         const parentSession = this.session;
 
         this.toolRegistry.register(defineTool('delegateToAgent', {
-            description: 'Delegate a sub-task to a specialized sub-agent. The sub-agent runs in an isolated context and returns a result.',
+            description: [
+                'Delegate a concrete, bounded sub-task to a specialized sub-agent. The sub-agent runs with pruned context and returns a report.',
+                formatSubagentManagerPrompt(subagentRegistry.listAgents()),
+            ].filter(Boolean).join('\n\n'),
             parameters: z.object({
                 agentName: z.string().describe('Name of the sub-agent to delegate to'),
                 taskDescription: z.string().describe('Detailed description of the task for the sub-agent'),
+                expectedOutput: z.string().optional().describe('Optional description of the exact report shape or evidence the manager needs back'),
             }),
             async execute(args) {
                 const result = await executeDelegate(args, {

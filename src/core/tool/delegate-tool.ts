@@ -18,12 +18,18 @@ import { Session } from '../session/state.js';
 import { SystemPromptBuilder } from '../router/prompt-builder.js';
 import { ToolRegistry } from '../tool/registry.js';
 import { ILLMProvider, StandardPrompt, StandardMessage } from '../llm/provider.js';
+import { formatDelegateTaskBlock } from '../subagents/prompt.js';
 
-const BASE_SUBAGENT_PROMPT = 'You are a specialized sub-agent. Complete the assigned task precisely and return a structured response.';
+const BASE_SUBAGENT_PROMPT = [
+    'You are a specialized sub-agent running with pruned context.',
+    'Focus only on the delegated task. Return a concise report that the manager can act on directly.',
+    'State uncertainty explicitly and avoid redoing unrelated work.',
+].join('\n');
 
 export interface DelegateArgs {
     agentName: string;
     taskDescription: string;
+    expectedOutput?: string;
 }
 
 export interface DelegateResult {
@@ -67,12 +73,13 @@ export async function executeDelegate(
     tempSession.addMessage({ role: 'user', content: args.taskDescription });
 
     // 3. 组装 Prompt
+    const delegatedTaskBlock = formatDelegateTaskBlock(args.taskDescription, args.expectedOutput);
     const builder = new SystemPromptBuilder(BASE_SUBAGENT_PROMPT)
         .withPersona(agent.systemPrompt)
-        .withConstraint(`You must complete this task: ${args.taskDescription}`);
+        .withConstraint(`Complete this delegated task:\n${delegatedTaskBlock}`);
 
     if (agent.reportFormat === 'json') {
-        builder.withConstraint('Return your response as a valid JSON object.');
+        builder.withConstraint('Return a valid JSON object.');
     }
 
     // 4. 准备工具列表（按白名单裁剪）

@@ -22,6 +22,7 @@ import { ToolPackRegistry } from '../tool/tool-pack.js';
 import { ProviderResolver } from '../llm/resolver.js';
 import { rankSkills } from '../skills/retrieval.js';
 import { deriveSkillRetrievalBias } from '../plugins/runtime/skill-bias.js';
+import { formatSubagentManagerPrompt } from '../subagents/prompt.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -193,6 +194,11 @@ export class LazyInjector {
                         promptParts.push(`\n--- Workspace Context: ${ctx} ---\n${content}`);
                     }
                 }
+            }
+        } else {
+            const subagentPrompt = formatSubagentManagerPrompt(this.subagentRegistry.listAgents());
+            if (subagentPrompt) {
+                promptParts.push(subagentPrompt);
             }
         }
 
