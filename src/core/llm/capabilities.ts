@@ -6,12 +6,14 @@ export interface ProviderCapabilityProfile {
     supportsEmbeddings: boolean;
     supportsModelListing: boolean;
     stripV1BaseURL: boolean;
+    omitSamplingParameters: boolean;
 }
 
 interface ProviderCapabilityEntry {
     supportsEmbeddings: boolean;
     supportsModelListing: boolean;
     stripV1BaseURL?: boolean;
+    omitSamplingParameters?: boolean;
 }
 
 const PROVIDER_ALIASES: Record<string, string> = {
@@ -23,6 +25,14 @@ const PROVIDER_ALIASES: Record<string, string> = {
     claude: 'anthropic',
     deepseek: 'deepseek',
     '@ai-sdk/deepseek': 'deepseek',
+    kimi: 'kimi',
+    'kimi-cn': 'kimi',
+    'kimi-code': 'kimi',
+    'kimi-code-cn': 'kimi',
+    'kimi-coding': 'kimi',
+    'kimi-coding-cn': 'kimi',
+    moonshot: 'kimi',
+    'moonshot-cn': 'kimi',
     gemini: 'gemini',
     google: 'gemini',
     '@ai-sdk/google': 'gemini',
@@ -47,6 +57,11 @@ const PROVIDER_CAPABILITIES: Record<string, ProviderCapabilityEntry> = {
     deepseek: {
         supportsEmbeddings: false,
         supportsModelListing: true,
+    },
+    kimi: {
+        supportsEmbeddings: false,
+        supportsModelListing: true,
+        omitSamplingParameters: true,
     },
     gemini: {
         supportsEmbeddings: false,
@@ -112,5 +127,6 @@ export function resolveProviderCapabilities(input: {
         supportsEmbeddings: capabilities.supportsEmbeddings,
         supportsModelListing: capabilities.supportsModelListing,
         stripV1BaseURL: capabilities.stripV1BaseURL ?? false,
+        omitSamplingParameters: capabilities.omitSamplingParameters ?? false,
     };
 }

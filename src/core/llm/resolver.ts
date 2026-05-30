@@ -8,7 +8,7 @@
 import { ILLMProvider } from './provider.js';
 import { VercelAIAdapter } from './vercel-ai.js';
 import { LocalEmbeddingAdapter } from './local-embedding.js';
-import { Config, ProviderConfig } from '../../config/index.js';
+import { Config, getEnvReferenceName, ProviderConfig } from '../../config/index.js';
 
 export interface ProviderInfo {
     name: string;
@@ -89,7 +89,14 @@ export class ProviderResolver {
         // 第二优先级：尝试寻找 openai 协议的 provider 降级使用 text-embedding-3-small
         for (const [name, cfg] of Object.entries(this.config.providers)) {
             if (cfg.protocol === 'openai') {
-                return this.resolveInstance(name, cfg, 'text-embedding-3-small');
+                try {
+                    const provider = this.resolveInstance(name, cfg, 'text-embedding-3-small');
+                    if (provider.supportsEmbedding()) {
+                        return provider;
+                    }
+                } catch (err) {
+                    console.warn(`[ProviderResolver] Skipping embedding provider ${name}:`, err instanceof Error ? err.message : err);
+                }
             }
         }
 
@@ -261,6 +268,11 @@ export class ProviderResolver {
 
         if (!sdkOrProtocol) {
             throw new Error(`Provider "${providerName}" has neither "sdk" nor "protocol" configured.`);
+        }
+        if (!cfg.apiKey || getEnvReferenceName(cfg.apiKey)) {
+            const envName = cfg.apiKey ? getEnvReferenceName(cfg.apiKey) : null;
+            const hint = envName ? ` Set environment variable ${envName}.` : '';
+            throw new Error(`Provider "${providerName}" API key is not configured.${hint}`);
         }
 
         instance = new VercelAIAdapter(sdkOrProtocol, cfg.apiKey, modelId, cfg.baseUrl, providerName);

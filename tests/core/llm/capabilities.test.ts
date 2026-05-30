@@ -27,6 +27,19 @@ describe('provider capability registry', () => {
         });
     });
 
+    it('treats Kimi/Moonshot coding endpoints as OpenAI-compatible without OpenAI embeddings or sampling overrides', () => {
+        expect(resolveProviderCapabilities({
+            sdkIdentifier: 'openai',
+            providerName: 'kimi-code-cn',
+        })).toMatchObject({
+            sdkKey: 'openai',
+            providerKey: 'kimi',
+            supportsEmbeddings: false,
+            supportsModelListing: true,
+            omitSamplingParameters: true,
+        });
+    });
+
     it('defaults unknown OpenAI-compatible providers to no remote embeddings', () => {
         expect(resolveProviderCapabilities({
             sdkIdentifier: 'some-openai-compatible-sdk',

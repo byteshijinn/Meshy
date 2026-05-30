@@ -56,7 +56,10 @@ export type Config = z.infer<typeof configSchema>;
 function loadJsonConfig(filePath: string): Record<string, any> {
     try {
         if (fs.existsSync(filePath)) {
-            const fileContents = fs.readFileSync(filePath, 'utf8');
+            let fileContents = fs.readFileSync(filePath, 'utf8');
+            if (fileContents.charCodeAt(0) === 0xFEFF) {
+                fileContents = fileContents.slice(1);
+            }
             const doc = JSON.parse(fileContents);
             return doc || {};
         }
@@ -90,6 +93,36 @@ function deepMerge<T extends Record<string, any>>(...objs: Partial<T>[]): T {
         }
     }
     return result as T;
+}
+
+export function resolveEnvReference(value: string): string {
+    const match = value.match(/^\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))$/);
+    if (!match) return value;
+
+    const envName = match[1] ?? match[2];
+    return process.env[envName] ?? value;
+}
+
+export function getEnvReferenceName(value: string): string | null {
+    const match = value.match(/^\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))$/);
+    return match ? (match[1] ?? match[2]) : null;
+}
+
+function expandProviderEnvReferences(raw: Record<string, any>): Record<string, any> {
+    if (!raw.providers || typeof raw.providers !== 'object') return raw;
+
+    const expanded = { ...raw, providers: { ...raw.providers } };
+    for (const [name, provider] of Object.entries(raw.providers)) {
+        if (!provider || typeof provider !== 'object') continue;
+        const cfg = provider as Record<string, any>;
+        expanded.providers[name] = {
+            ...cfg,
+            apiKey: typeof cfg.apiKey === 'string' ? resolveEnvReference(cfg.apiKey) : cfg.apiKey,
+            baseUrl: typeof cfg.baseUrl === 'string' ? resolveEnvReference(cfg.baseUrl) : cfg.baseUrl,
+        };
+    }
+
+    return expanded;
 }
 
 /**
@@ -184,5 +217,5 @@ export function loadConfig(runtimeOverrides: Partial<Config> = {}): Config {
         runtimeOverrides as Record<string, any>
     );
 
-    return configSchema.parse(merged);
+    return configSchema.parse(expandProviderEnvReferences(merged));
 }

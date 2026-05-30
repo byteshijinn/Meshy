@@ -201,14 +201,16 @@ export class VercelAIAdapter implements ILLMProvider {
                 model: this.modelId,
                 baseURL: this.baseURL
             });
+            const samplingOptions = this.capabilities.omitSamplingParameters
+                ? {}
+                : { temperature: prompt.temperature, topP: prompt.topP };
             const result = streamText({
                 model: this.model,
                 messages,
                 system: prompt.systemPrompt,
                 tools: Object.keys(tools).length > 0 ? tools : undefined,
-                temperature: prompt.temperature,
                 maxOutputTokens: prompt.maxTokens,
-                topP: prompt.topP,
+                ...samplingOptions,
                 abortSignal
             } as any);
 
@@ -282,9 +284,8 @@ export class VercelAIAdapter implements ILLMProvider {
                     messages,
                     system: prompt.systemPrompt,
                     tools: Object.keys(tools).length > 0 ? tools : undefined,
-                    temperature: prompt.temperature,
                     maxOutputTokens: prompt.maxTokens,
-                    topP: prompt.topP,
+                    ...samplingOptions,
                     abortSignal
                 } as any);
 
