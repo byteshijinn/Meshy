@@ -11,6 +11,7 @@ test-*/
 public/
 .agent/
 .worktrees/
+electron/main.js
 
 # Local/manual probes that require external services, secrets, or a running daemon.
 tests/deepseek_stream_test.mjs
