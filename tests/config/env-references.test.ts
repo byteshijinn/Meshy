@@ -33,19 +33,19 @@ describe('config environment references', () => {
         fs.mkdirSync(path.join(tempRoot, '.agent'), { recursive: true });
         fs.writeFileSync(path.join(tempRoot, '.agent', 'config.json'), JSON.stringify({
             providers: {
-                'kimi-code-cn': {
+                'kimi-for-coding': {
                     protocol: 'openai',
                     baseUrl: '$KIMI_BASE_URL',
                     apiKey: '$KIMI_API_KEY',
                     models: {
-                        'kimi-for-coding': { name: 'Kimi Code' },
+                        k2p6: { name: 'Kimi K2.6' },
                     },
                 },
             },
             models: {
-                default: 'kimi-code-cn/kimi-for-coding',
-                fallback: 'kimi-code-cn/kimi-for-coding',
-                small: 'kimi-code-cn/kimi-for-coding',
+                default: 'kimi-for-coding/k2p6',
+                fallback: 'kimi-for-coding/k2p6',
+                small: 'kimi-for-coding/k2p6',
             },
         }), 'utf8');
 
@@ -55,9 +55,9 @@ describe('config environment references', () => {
 
         const config = loadConfig();
 
-        expect(config.providers['kimi-code-cn'].apiKey).toBe('test-kimi-token');
-        expect(config.providers['kimi-code-cn'].baseUrl).toBe('https://api.kimi.com/coding/v1');
-        expect(config.models.default).toBe('kimi-code-cn/kimi-for-coding');
+        expect(config.providers['kimi-for-coding'].apiKey).toBe('test-kimi-token');
+        expect(config.providers['kimi-for-coding'].baseUrl).toBe('https://api.kimi.com/coding/v1');
+        expect(config.models.default).toBe('kimi-for-coding/k2p6');
     });
 
     it('recognizes exact shell-style environment placeholders', () => {

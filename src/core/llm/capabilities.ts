@@ -27,6 +27,8 @@ const PROVIDER_ALIASES: Record<string, string> = {
     '@ai-sdk/deepseek': 'deepseek',
     kimi: 'kimi',
     'kimi-cn': 'kimi',
+    'kimi-for-coding': 'kimi',
+    'kimi-for-coding-cn': 'kimi',
     'kimi-code': 'kimi',
     'kimi-code-cn': 'kimi',
     'kimi-coding': 'kimi',

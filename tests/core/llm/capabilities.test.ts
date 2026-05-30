@@ -30,7 +30,7 @@ describe('provider capability registry', () => {
     it('treats Kimi/Moonshot coding endpoints as OpenAI-compatible without OpenAI embeddings or sampling overrides', () => {
         expect(resolveProviderCapabilities({
             sdkIdentifier: 'openai',
-            providerName: 'kimi-code-cn',
+            providerName: 'kimi-for-coding',
         })).toMatchObject({
             sdkKey: 'openai',
             providerKey: 'kimi',
