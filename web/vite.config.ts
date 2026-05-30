@@ -10,17 +10,23 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // SSE 事件流代理到后端 DaemonServer
+      // SSE event stream proxy to the backend daemon.
       '/events': {
         target: 'http://localhost:9120',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            proxyRes.headers['cache-control'] = 'no-cache'
+            proxyRes.headers['x-accel-buffering'] = 'no'
+          })
+        },
       },
-      // JSON-RPC over HTTP POST 代理到后端
+      // JSON-RPC over HTTP POST proxy to the backend daemon.
       '/rpc': {
         target: 'http://localhost:9120',
         changeOrigin: true,
       },
-      // 开发模式下代理 WebSocket 到后端 DaemonServer（仅用于 RPC 发送）
+      // WebSocket proxy for development.
       '/ws': {
         target: 'ws://localhost:9120',
         ws: true,
