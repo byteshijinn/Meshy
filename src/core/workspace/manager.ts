@@ -3,15 +3,38 @@ import { ProviderResolver } from '../llm/resolver.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+
+const BLOCKED_WORKSPACE_DIR_NAMES = new Set([
+    '.agent',
+    '.cache',
+    '.claude',
+    '.git',
+    '.hg',
+    '.meshy',
+    '.next',
+    '.nuxt',
+    '.sisyphus',
+    '.specflow',
+    '.svn',
+    '.worktrees',
+    '__pycache__',
+    'build',
+    'coverage',
+    'dist',
+    'node_modules',
+    'public',
+    'tmp',
+]);
+
 export class WorkspaceManager {
     private workspaces: Map<string, Workspace> = new Map();
     private providerResolver: ProviderResolver;
     private registryPath: string;
     private persistedWorkspaces: string[] = [];
 
-    constructor(providerResolver: ProviderResolver) {
+    constructor(providerResolver: ProviderResolver, registryPath?: string) {
         this.providerResolver = providerResolver;
-        this.registryPath = path.join(os.homedir(), '.meshy', 'workspaces.json');
+        this.registryPath = registryPath ?? path.join(os.homedir(), '.meshy', 'workspaces.json');
         this.loadPersistedWorkspaces();
     }
 
@@ -61,9 +84,36 @@ export class WorkspaceManager {
 
     public addWorkspace(rootPath: string): void {
         const resolvedPath = path.resolve(rootPath);
+        this.assertValidWorkspaceRoot(resolvedPath);
+
         if (!this.persistedWorkspaces.includes(resolvedPath)) {
             this.persistedWorkspaces.push(resolvedPath);
             this.savePersistedWorkspaces();
+        }
+    }
+
+    private assertValidWorkspaceRoot(resolvedPath: string): void {
+        const dirName = path.basename(resolvedPath);
+        const normalizedDirName = dirName.toLowerCase();
+
+        if (BLOCKED_WORKSPACE_DIR_NAMES.has(normalizedDirName)) {
+            throw new Error(`Cannot add system directory "${dirName}" as a workspace. Choose the project root instead.`);
+        }
+
+        if (!fs.existsSync(resolvedPath)) {
+            throw new Error(`Workspace directory does not exist: ${resolvedPath}`);
+        }
+
+        const stat = fs.statSync(resolvedPath);
+        if (!stat.isDirectory()) {
+            throw new Error(`Workspace path is not a directory: ${resolvedPath}`);
+        }
+
+        try {
+            fs.accessSync(resolvedPath, fs.constants.R_OK);
+            fs.readdirSync(resolvedPath);
+        } catch (err) {
+            throw new Error(`Workspace directory is not readable: ${resolvedPath}`);
         }
     }
 
