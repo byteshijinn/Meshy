@@ -47,6 +47,9 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
     const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
 
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const promptHistoryRef = useRef<string[]>([])
+    const historyIndexRef = useRef(-1)
+    const historyDraftRef = useRef('')
 
     useEffect(() => {
         sendRpc<{ providers: Record<string, { protocol: string, models: string[] }>, defaultModel: string }>('model:list').then((res) => {
@@ -84,9 +87,15 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
     }
 
     const handleSend = useCallback(() => {
-        if ((!text.trim() && attachments.length === 0) || disabled) return
+        const message = text.trim()
+        if ((!message && attachments.length === 0) || disabled) return
 
-        onSend(text.trim(), mode, attachments)
+        onSend(message, mode, attachments)
+        if (message && promptHistoryRef.current[0] !== message) {
+            promptHistoryRef.current = [message, ...promptHistoryRef.current].slice(0, 50)
+        }
+        historyIndexRef.current = -1
+        historyDraftRef.current = ''
         setText('')
         setAttachments([])
         setOmnibarVisible(false)
@@ -196,7 +205,58 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
         if (textareaRef.current) textareaRef.current.focus()
     }
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const restoreHistoryText = (value: string) => {
+        setText(value)
+        requestAnimationFrame(() => {
+            const el = textareaRef.current
+            if (!el) return
+            el.focus()
+            el.selectionStart = value.length
+            el.selectionEnd = value.length
+            el.style.height = '44px'
+            el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+        })
+    }
+
+    const handleHistoryKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (omnibarVisible || mentionVisible || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return false
+        const history = promptHistoryRef.current
+        if (history.length === 0) return false
+
+        const el = e.currentTarget
+        const selectionStart = el.selectionStart ?? 0
+        const selectionEnd = el.selectionEnd ?? selectionStart
+        if (selectionStart !== selectionEnd) return false
+        if (e.key === 'ArrowUp' && selectionStart !== 0) return false
+        if (e.key === 'ArrowDown' && selectionStart !== text.length) return false
+
+        e.preventDefault()
+        if (e.key === 'ArrowUp') {
+            if (historyIndexRef.current === -1) {
+                historyDraftRef.current = text
+            }
+            const nextIndex = historyIndexRef.current === -1
+                ? 0
+                : Math.min(historyIndexRef.current + 1, history.length - 1)
+            historyIndexRef.current = nextIndex
+            restoreHistoryText(history[nextIndex])
+            return true
+        }
+
+        if (historyIndexRef.current === -1) return true
+        const nextIndex = historyIndexRef.current - 1
+        if (nextIndex < 0) {
+            historyIndexRef.current = -1
+            restoreHistoryText(historyDraftRef.current)
+            historyDraftRef.current = ''
+            return true
+        }
+        historyIndexRef.current = nextIndex
+        restoreHistoryText(history[nextIndex])
+        return true
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         // Handle Omnibar keyboard navigation
         if (omnibarVisible && filteredCommands.length > 0) {
             if (e.key === 'ArrowDown') {
@@ -243,6 +303,10 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
             }
         }
 
+        if (handleHistoryKey(e)) {
+            return
+        }
+
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSend()
@@ -256,6 +320,10 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
     // 自动增高
     const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value
+        if (historyIndexRef.current !== -1) {
+            historyIndexRef.current = -1
+            historyDraftRef.current = ''
+        }
         setText(val)
 
         // Show omnibar if text starts with '/'
@@ -430,7 +498,7 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
                     value={text}
                     onChange={handleInput}
                     onKeyDown={handleKeyDown}
-                    placeholder="Type your message... (@ for files, / for commands, + for skills)"
+                    placeholder="Type your message... (@ for context, / for commands, Up/Down for history)"
                     disabled={disabled}
                     rows={1}
                 />
