@@ -15,6 +15,10 @@ const TABS: { key: TabName; label: string }[] = [
     { key: 'messaging', label: 'Msg' },
 ]
 
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error)
+}
+
 interface RightPanelProps {
     policyDecisions: PolicyDecisionEvent[]
     policyDecisionHistory: PolicyDecisionEvent[]
@@ -128,7 +132,7 @@ function SkillsTab() {
                 setSelectedSkillContent('Failed to load skill content.')
                 setEditedSkillContent('')
             }
-        } catch (e) {
+        } catch {
             setSelectedSkillContent('Error loading skill content.')
             setEditedSkillContent('')
         } finally {
@@ -151,8 +155,8 @@ function SkillsTab() {
             } else {
                 alert(`Failed to save: ${res?.error || 'Unknown error'}`)
             }
-        } catch (e: any) {
-            alert(`Error saving skill: ${e.message}`)
+        } catch (e: unknown) {
+            alert(`Error saving skill: ${getErrorMessage(e)}`)
         } finally {
             setIsSaving(false)
         }
@@ -172,8 +176,8 @@ function SkillsTab() {
             } else {
                 alert(`Failed to delete: ${res?.error || 'Unknown error'}`)
             }
-        } catch (e: any) {
-            alert(`Error deleting skill: ${e.message}`)
+        } catch (e: unknown) {
+            alert(`Error deleting skill: ${getErrorMessage(e)}`)
         }
     }
 

@@ -5,13 +5,17 @@ import { ModelSelector } from './ModelSelector'
 import { AgentSelector, type AgentInfo } from './AgentSelector'
 
 // @ Mention item from mention:list RPC
+type MentionNamespace = 'agent' | 'skill' | 'mcp'
+
 interface MentionItem {
-    namespace: 'agent' | 'skill' | 'mcp';
+    namespace: MentionNamespace;
     name: string;
     label: string;
     description: string;
     emoji: string;
 }
+
+type MentionCategory = MentionItem
 
 interface Props {
     onSend: (text: string, mode: string, attachments?: { name: string, type: string, data: string }[]) => void;
@@ -131,11 +135,11 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
     const filteredCommands = commands.filter(c => c.name.toLowerCase().includes(omnibarFilter))
 
     // Namespace categories for @ first-level menu
-    const NAMESPACE_CATEGORIES = [
+    const NAMESPACE_CATEGORIES = useMemo<MentionCategory[]>(() => [
         { namespace: 'agent', name: 'agent', label: 'Agents', emoji: '🤖', description: 'Switch or invoke an agent' },
         { namespace: 'skill', name: 'skill', label: 'Skills', emoji: '⚡', description: 'Attach a skill to context' },
         { namespace: 'mcp', name: 'mcp', label: 'MCP Servers', emoji: '🔌', description: 'Connect an MCP server' },
-    ]
+    ], [])
 
     // Parse mention query: determine if we're at namespace level or entity level
     const mentionParsed = useMemo(() => {
@@ -148,24 +152,18 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
         return { namespace: null, entityFilter: mentionQuery.toLowerCase() }
     }, [mentionQuery])
 
-    // Filtered mention items for the popover
-    const filteredMentionItems = useMemo(() => {
-        if (!mentionParsed.namespace) {
-            // Show namespace categories filtered by input
-            return NAMESPACE_CATEGORIES.filter(c =>
-                c.namespace.includes(mentionParsed.entityFilter) ||
-                c.label.toLowerCase().includes(mentionParsed.entityFilter)
-            )
-        }
-        // Show entities within the selected namespace
-        return mentionItems
+    const filteredMentionItems = !mentionParsed.namespace
+        ? NAMESPACE_CATEGORIES.filter(c =>
+            c.namespace.includes(mentionParsed.entityFilter) ||
+            c.label.toLowerCase().includes(mentionParsed.entityFilter)
+        )
+        : mentionItems
             .filter(item => item.namespace === mentionParsed.namespace)
             .filter(item => {
                 const nameMatch = item.name?.toLowerCase().includes(mentionParsed.entityFilter) ?? false;
                 const labelMatch = item.label?.toLowerCase().includes(mentionParsed.entityFilter) ?? false;
                 return nameMatch || labelMatch;
             })
-    }, [mentionParsed, mentionItems])
 
     const applyCommand = (cmdName: string) => {
         setText(`/${cmdName} `)
@@ -417,7 +415,7 @@ export function InputArea({ onSend, disabled, bbOpen, onToggleBb }: Props) {
                                     </span>
                                 </span>
                                 <span className="omnibar-cmd-desc">
-                                    {item.description || (item as any).label || ''}
+                                    {item.description || item.label || ''}
                                 </span>
                             </li>
                         ))}

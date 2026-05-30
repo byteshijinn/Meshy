@@ -12,16 +12,19 @@ import {
   type ChatMessage,
   type RpcMessage,
   type PolicyDecisionEvent,
-  type ToolCallInfo,
 } from './store/ws'
 import { attachToolError, upsertToolCallById } from './store/tool-call-linking'
 import { hydrateReplayView } from './store/replay-hydration'
-import { mergePolicyDecision } from './store/policy-decision-ui.js'
+import { mergePolicyDecision, parsePolicyDecisionTimestamp } from './store/policy-decision-ui.js'
 import type { ReplayExport } from '../../src/shared/replay-contract.js'
 import { LeftSidebar } from './components/LeftSidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { RightPanel } from './components/RightPanel'
 import { InputArea } from './components/InputArea'
+
+type SessionActionPayload = {
+  title?: string
+}
 
 function App() {
   const { connected } = useWebSocket()
@@ -53,6 +56,30 @@ function App() {
       list[list.length - 1] = last
     }
     return { list, agent: last }
+  }, [])
+
+  const handleSessionSwitch = useCallback((sessionId: string, title?: string) => {
+    setActiveSession({ id: sessionId, title })
+    sendRpc<{ success: boolean; replay?: ReplayExport }>('session:switch', { sessionId }).then((res) => {
+      if (res?.success && res.replay) {
+        const hydrated = hydrateReplayView(res.replay)
+        setMessages(hydrated.messages)
+        setBbGoal(res.replay.blackboard.currentGoal)
+        setBbTasks(res.replay.blackboard.tasks)
+        replacePolicyDecisionTimeline(hydrated.policyDecisions)
+        replacePolicyDecisionHistory(hydrated.policyDecisions)
+        setPolicyDecisions(getPolicyDecisionTimeline())
+        setPolicyDecisionHistory(getPolicyDecisionHistory())
+      } else {
+        setMessages([])
+        setBbGoal('')
+        setBbTasks([])
+        clearPolicyDecisionTimeline()
+        clearPolicyDecisionHistory()
+        setPolicyDecisions([])
+        setPolicyDecisionHistory([])
+      }
+    })
   }, [])
 
   // 接收 Agent 流式文本
@@ -272,7 +299,7 @@ function App() {
         mode,
         permissionClass,
         reason,
-        timestamp: data.timestamp,
+        timestamp: parsePolicyDecisionTimestamp(data.timestamp),
       }
 
       if (matchedIndex >= 0) {
@@ -330,33 +357,7 @@ function App() {
     )
   }, [])
 
-  // Session 切换：加载历史消息
-  const handleSessionSwitch = useCallback((sessionId: string, title?: string) => {
-    setActiveSession({ id: sessionId, title })
-    sendRpc<{ success: boolean; replay?: ReplayExport }>('session:switch', { sessionId }).then((res) => {
-      if (res?.success && res.replay) {
-        const hydrated = hydrateReplayView(res.replay)
-        setMessages(hydrated.messages)
-        setBbGoal(res.replay.blackboard.currentGoal)
-        setBbTasks(res.replay.blackboard.tasks)
-        replacePolicyDecisionTimeline(hydrated.policyDecisions)
-        replacePolicyDecisionHistory(hydrated.policyDecisions)
-        setPolicyDecisions(getPolicyDecisionTimeline())
-        setPolicyDecisionHistory(getPolicyDecisionHistory())
-      } else {
-        // 新 session，清空消息
-        setMessages([])
-        setBbGoal('')
-        setBbTasks([])
-        clearPolicyDecisionTimeline()
-        clearPolicyDecisionHistory()
-        setPolicyDecisions([])
-        setPolicyDecisionHistory([])
-      }
-    })
-  }, [])
-
-  const handleSessionAction = useCallback((action: 'rename' | 'delete' | 'compact', payload?: any) => {
+  const handleSessionAction = useCallback((action: 'rename' | 'delete' | 'compact', payload?: SessionActionPayload) => {
     if (!activeSession) return
 
     if (action === 'delete') {
@@ -392,7 +393,7 @@ function App() {
         }
       })
     }
-  }, [activeSession])
+  }, [activeSession, handleSessionSwitch])
 
   return (
     <div className="app-layout">

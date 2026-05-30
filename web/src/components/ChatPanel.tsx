@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { Search, ChevronUp, ChevronDown, MoreVertical, Edit2, Trash2, Minimize2 } from 'lucide-react'
-import { useWebSocket, useEvent, type ChatMessage } from '../store/ws'
+import { useWebSocket, useEvent, type ChatMessage, type RpcMessage } from '../store/ws'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CodeBlock, PreBlock } from './CodeBlock'
@@ -10,7 +10,7 @@ interface Props {
     messages: ChatMessage[];
     onApproval: (id: string, approved: boolean) => void;
     activeSession: { id: string; title?: string } | null;
-    onSessionAction: (action: 'rename' | 'compact' | 'delete', payload?: any) => void;
+    onSessionAction: (action: 'rename' | 'compact' | 'delete', payload?: { title?: string }) => void;
 }
 
 export function ChatPanel({ messages, onApproval, activeSession, onSessionAction }: Props) {
@@ -36,9 +36,10 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
     }, [sendRpc])
 
     // Listen for workspace switches
-    useEvent('workspace:list', (msg: any) => {
-        if (msg.data && msg.data.activeWorkspace) {
-            setActiveWorkspace(msg.data.activeWorkspace)
+    useEvent('workspace:list', (msg: RpcMessage) => {
+        const data = msg.data as { activeWorkspace?: string } | undefined
+        if (data?.activeWorkspace) {
+            setActiveWorkspace(data.activeWorkspace)
         }
     })
 
@@ -90,7 +91,11 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
     const toggleTool = (key: string) => {
         setExpandedTools((prev) => {
             const next = new Set(prev)
-            next.has(key) ? next.delete(key) : next.add(key)
+            if (next.has(key)) {
+                next.delete(key)
+            } else {
+                next.add(key)
+            }
             return next
         })
     }
@@ -318,7 +323,6 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
                                             borderRadius: '4px', fontSize: '12px', border: '1px solid var(--border)'
                                         }}>
                                             {att.type.startsWith('image/') ? (
-                                                // eslint-disable-next-line @next/next/no-img-element
                                                 <img src={att.data} alt={att.name} style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
                                             ) : (
                                                 <span style={{ fontSize: '14px' }}>📄</span>
@@ -372,7 +376,7 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
                                             toolTarget = `"${parsedArgs.query || parsedArgs.pattern || ''}"`;
                                         }
                                     }
-                                } catch (e) {
+                                } catch {
                                     // 忽略解析错误，保持默认
                                 }
 

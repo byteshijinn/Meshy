@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sortPolicyDecisionsNewestFirst } from './policy-decision-ui.js';
 
 // ─── RPC 消息协议（与后端 DaemonServer 一致）───
@@ -269,7 +269,6 @@ export function useWebSocket() {
     useEffect(() => {
         // 如果已有 SSE 连接且仍然活跃，复用它
         if (sseSource && sseSource.readyState !== EventSource.CLOSED) {
-            setConnected(sseConnected);
             return;
         }
 
@@ -292,8 +291,7 @@ export function useWebSocket() {
         return undefined;
     }, []);
 
-    const rpc = useCallback(sendRpc, []);
-    return { connected, sendRpc: rpc };
+    return { connected, sendRpc };
 }
 
 /**
@@ -303,7 +301,10 @@ export function useWebSocket() {
  */
 export function useEvent(eventName: string, handler: EventHandler) {
     const savedHandler = useRef(handler);
-    savedHandler.current = handler;
+
+    useEffect(() => {
+        savedHandler.current = handler;
+    }, [handler]);
 
     // 用一个稳定的 ref 持有 unsubscribe 函数
     const unsubRef = useRef<(() => void) | null>(null);

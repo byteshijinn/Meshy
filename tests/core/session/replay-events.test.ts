@@ -4,10 +4,12 @@ import { Session } from '../../../src/core/session/state.js';
 
 describe('replay unified events', () => {
     it('exports a derived replay event stream alongside steps', () => {
+        const timestamp = '2026-04-06T00:00:00.000Z';
         const session = new Session('session-events');
-        session.addMessage({ role: 'user', content: 'hello world' });
+        session.addMessage({ role: 'user', content: 'hello world', timestamp });
         session.addMessage({
             role: 'assistant',
+            timestamp,
             content: {
                 type: 'tool_call',
                 id: 'tool-call-1',
@@ -17,6 +19,7 @@ describe('replay unified events', () => {
         });
         session.addMessage({
             role: 'user',
+            timestamp,
             content: {
                 type: 'tool_result',
                 id: 'tool-call-1',

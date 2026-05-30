@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { sendRpc, useEvent } from '../store/ws'
+import { sendRpc, useEvent, type RpcMessage } from '../store/ws'
 import { Settings, Plus, MessageSquare } from 'lucide-react'
 
 interface SessionInfo {
@@ -48,7 +48,7 @@ export function LeftSidebar({ connected, activeSessionId, onSessionSwitch }: Pro
     }, [refreshSessions, refreshWorkspaces])
 
     // Global listener for session changes (deletion, renaming, etc.)
-    useEvent('session:list', (msg: any) => {
+    useEvent('session:list', (msg: RpcMessage) => {
         const data = msg.data as { sessions: SessionInfo[] }
         if (data?.sessions) {
             setSessions(data.sessions)

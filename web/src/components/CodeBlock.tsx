@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { isValidElement, useState, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import { Copy, Check } from 'lucide-react'
 
-// 普通的代码标签组件 (处理高亮和内联样式)
-export function CodeBlock({ node, className, children, ...props }: any) {
-    // 这里只需返回 code 标签，不再包含 pre 包装
+type CodeBlockProps = ComponentPropsWithoutRef<'code'> & {
+    node?: unknown
+}
+
+export function CodeBlock({ node, className, children, ...props }: CodeBlockProps) {
+    void node
+
     return (
         <code className={className} {...props}>
             {children}
@@ -11,15 +15,15 @@ export function CodeBlock({ node, className, children, ...props }: any) {
     )
 }
 
-// 专门处理 pre 块的组件 (管理复制按钮)
-export function PreBlock({ children }: any) {
+export function PreBlock({ children }: { children?: ReactNode }) {
     const [copied, setCopied] = useState(false)
 
-    // 从 React Element 递归提取纯文本
-    const getText = (node: any): string => {
+    const getText = (node: ReactNode): string => {
         if (typeof node === 'string') return node
-        if (node instanceof Array) return node.map(getText).join('')
-        if (node?.props?.children) return getText(node.props.children)
+        if (Array.isArray(node)) return node.map(getText).join('')
+        if (isValidElement<{ children?: ReactNode }>(node) && node.props.children) {
+            return getText(node.props.children)
+        }
         return ''
     }
 
@@ -32,8 +36,6 @@ export function PreBlock({ children }: any) {
         })
     }
 
-    // 处理阈值：判断是否为“大块”代码。
-    // 这里我们判断代码内容超过 2 行，或者字符数超过 40
     const codeText = getText(children)
     const lineCount = codeText.trim().split('\n').length
     const isBig = lineCount >= 2 || codeText.length > 40
