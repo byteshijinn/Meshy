@@ -28,14 +28,32 @@ const BASE_SUBAGENT_PROMPT = [
 
 export interface DelegateArgs {
     agentName: string;
+    taskName?: string;
     taskDescription: string;
     expectedOutput?: string;
 }
 
 export interface DelegateResult {
     agentName: string;
+    taskName?: string;
+    sessionId?: string;
+    toolsGranted?: string[];
     response: string;
     success: boolean;
+}
+
+export function normalizeDelegateTaskName(taskName: string | undefined): string | undefined {
+    const trimmed = taskName?.trim();
+    if (!trimmed) return undefined;
+
+    const normalized = trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 64)
+        .replace(/_+$/g, '');
+
+    return normalized || undefined;
 }
 
 /**
@@ -51,19 +69,22 @@ export async function executeDelegate(
     },
 ): Promise<DelegateResult> {
     const { subagentRegistry, providerResolver, toolRegistry, parentSession } = context;
+    const taskName = normalizeDelegateTaskName(args.taskName);
 
     // 1. 查找 Subagent
     const agent = subagentRegistry.getAgent(args.agentName);
     if (!agent) {
         return {
             agentName: args.agentName,
+            taskName,
             response: `Agent "${args.agentName}" not found. Available: ${subagentRegistry.listAgents().map(a => a.name).join(', ')}`,
             success: false,
         };
     }
 
     // 2. 创建隔离 Session（裁剪上下文）
-    const tempSession = new Session(`delegate-${agent.name}-${Date.now()}`);
+    const sessionId = `delegate-${agent.name}${taskName ? `-${taskName}` : ''}-${Date.now()}`;
+    const tempSession = new Session(sessionId);
 
     // 仅注入最近 N 条消息作为背景
     const recentHistory = parentSession.history.slice(-agent.maxContextMessages);
@@ -73,7 +94,7 @@ export async function executeDelegate(
     tempSession.addMessage({ role: 'user', content: args.taskDescription });
 
     // 3. 组装 Prompt
-    const delegatedTaskBlock = formatDelegateTaskBlock(args.taskDescription, args.expectedOutput);
+    const delegatedTaskBlock = formatDelegateTaskBlock(args.taskDescription, args.expectedOutput, taskName);
     const builder = new SystemPromptBuilder(BASE_SUBAGENT_PROMPT)
         .withPersona(agent.systemPrompt)
         .withConstraint(`Complete this delegated task:\n${delegatedTaskBlock}`);
@@ -89,6 +110,7 @@ export async function executeDelegate(
     const filteredTools = hasWhitelist
         ? allTools.filter(t => whitelistSet.has(t.name))
         : allTools;
+    const toolsGranted = filteredTools.map(t => t.name);
 
     // 5. 获取模型并执行推理
     const llm: ILLMProvider = providerResolver.getProvider(agent.model);
@@ -110,6 +132,9 @@ export async function executeDelegate(
         const message = err instanceof Error ? err.message : String(err);
         return {
             agentName: agent.name,
+            taskName,
+            sessionId,
+            toolsGranted,
             response: `Delegate failed: ${message}`,
             success: false,
         };
@@ -118,6 +143,9 @@ export async function executeDelegate(
     // 6. 返回结果（临时 Session 自动被 GC 回收）
     return {
         agentName: agent.name,
+        taskName,
+        sessionId,
+        toolsGranted,
         response: responseText || '(empty response)',
         success: true,
     };

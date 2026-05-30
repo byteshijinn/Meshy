@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { executeDelegate } from '../../../src/core/tool/delegate-tool.js';
+import { executeDelegate, normalizeDelegateTaskName } from '../../../src/core/tool/delegate-tool.js';
 import { Session } from '../../../src/core/session/state.js';
 import type { SubagentConfig } from '../../../src/core/subagents/loader.js';
 import type { StandardPrompt } from '../../../src/core/llm/provider.js';
@@ -20,6 +20,12 @@ const baseAgent: SubagentConfig = {
 };
 
 describe('executeDelegate', () => {
+    it('normalizes optional delegate task names for traceability', () => {
+        expect(normalizeDelegateTaskName('Review Engine Slice')).toBe('review_engine_slice');
+        expect(normalizeDelegateTaskName('  !!!!  ')).toBeUndefined();
+        expect(normalizeDelegateTaskName(undefined)).toBeUndefined();
+    });
+
     it('frames delegated tasks with expected output and pruned parent context', async () => {
         let capturedPrompt: StandardPrompt | null = null;
         const parentSession = new Session('parent');
@@ -29,6 +35,7 @@ describe('executeDelegate', () => {
         const result = await executeDelegate(
             {
                 agentName: 'reviewer',
+                taskName: 'Review Engine Slice',
                 taskDescription: 'Review src/core/engine/index.ts for regressions.',
                 expectedOutput: 'Return findings with file and line references.',
             },
@@ -56,11 +63,16 @@ describe('executeDelegate', () => {
         );
 
         expect(result.success).toBe(true);
+        expect(result.taskName).toBe('review_engine_slice');
+        expect(result.sessionId).toContain('delegate-reviewer-review_engine_slice-');
+        expect(result.toolsGranted).toEqual(['readFile']);
         expect(capturedPrompt?.messages.map((m) => m.content)).toEqual([
             'recent context',
             'Review src/core/engine/index.ts for regressions.',
         ]);
         expect(capturedPrompt?.systemPrompt).toContain('<delegated_task>');
+        expect(capturedPrompt?.systemPrompt).toContain('<task_name>');
+        expect(capturedPrompt?.systemPrompt).toContain('review_engine_slice');
         expect(capturedPrompt?.systemPrompt).toContain('Return findings with file and line references.');
         expect(capturedPrompt?.systemPrompt).toContain('Return a valid JSON object');
         expect(capturedPrompt?.tools.map((t) => t.name)).toEqual(['readFile']);

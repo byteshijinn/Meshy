@@ -1414,6 +1414,7 @@ export class TaskEngine {
             ].filter(Boolean).join('\n\n'),
             parameters: z.object({
                 agentName: z.string().describe('Name of the sub-agent to delegate to'),
+                taskName: z.string().optional().describe('Optional short snake_case task name used only for traceability when delegating multiple subtasks'),
                 taskDescription: z.string().describe('Detailed description of the task for the sub-agent'),
                 expectedOutput: z.string().optional().describe('Optional description of the exact report shape or evidence the manager needs back'),
             }),

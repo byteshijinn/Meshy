@@ -34,5 +34,7 @@ describe('subagent prompt helpers', () => {
         expect(roster).toContain('tools: all available tools');
         expect(roster).toContain('</subagents>');
         expect(SUBAGENT_USAGE_GUIDANCE).toContain('Keep critical-path blocking work local');
+        expect(SUBAGENT_USAGE_GUIDANCE).toContain('one synchronous call');
+        expect(SUBAGENT_USAGE_GUIDANCE).not.toContain('while a delegate runs');
     });
 });

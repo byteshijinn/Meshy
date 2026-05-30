@@ -2,10 +2,10 @@ import type { SubagentConfig } from './loader.js';
 
 export const SUBAGENT_USAGE_GUIDANCE = [
     '<subagent_usage>',
-    'Use delegateToAgent for concrete, bounded sidecar tasks that materially advance the current task.',
+    'Use delegateToAgent for concrete, bounded subtasks when a specialist can return a useful report in one synchronous call.',
     'Keep critical-path blocking work local when your next step depends on the result.',
-    'Do not duplicate delegated work. Continue with non-overlapping local work while a delegate runs.',
-    'When delegating, pass the exact agentName from the roster and a self-contained taskDescription with the expected output.',
+    'Do not duplicate delegated work. Wait for the delegated report, then integrate it or continue with a clearly different task.',
+    'When delegating, pass the exact agentName from the roster, a short taskName when useful, and a self-contained taskDescription with the expected output.',
     'Prefer agents whose tool whitelist and persona match the delegated task.',
     '</subagent_usage>',
 ].join('\n');
@@ -37,11 +37,17 @@ export function formatSubagentManagerPrompt(agents: SubagentConfig[]): string {
     return `${roster}\n\n${SUBAGENT_USAGE_GUIDANCE}`;
 }
 
-export function formatDelegateTaskBlock(taskDescription: string, expectedOutput?: string): string {
+export function formatDelegateTaskBlock(taskDescription: string, expectedOutput?: string, taskName?: string): string {
     const parts = [
         '<delegated_task>',
-        taskDescription.trim(),
     ];
+
+    const trimmedTaskName = taskName?.trim();
+    if (trimmedTaskName) {
+        parts.push('<task_name>', trimmedTaskName, '</task_name>', '');
+    }
+
+    parts.push('<task_description>', taskDescription.trim(), '</task_description>');
 
     const trimmedExpectedOutput = expectedOutput?.trim();
     if (trimmedExpectedOutput) {
