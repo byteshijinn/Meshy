@@ -5,6 +5,7 @@ import { DaemonServer } from './core/daemon/server.js';
 import { WorkspaceManager } from './core/workspace/manager.js';
 import { SessionManager } from './core/session/manager.js';
 import { exportReplay, loadReplay } from './core/session/replay.js';
+import { getLastAssistantFinalContent } from './core/session/final-response.js';
 import { terminalManager } from './core/terminal/manager.js';
 import { HarnessServerAdapter } from './core/server/harness/adapter.js';
 import { PluginLoader } from './core/plugins/loader.js';
@@ -499,8 +500,9 @@ export async function handleTaskSubmitFromDaemon(
             id: deps.createErrorEventId?.() ?? `error-${Date.now()}`,
         });
     } finally {
+        const finalContent = getLastAssistantFinalContent(deps.getSession());
         deps.daemon.broadcast('session:list', { sessions: deps.sessionManager.listSessions() });
-        deps.daemon.broadcast('agent:done', { id });
+        deps.daemon.broadcast('agent:done', { id, finalContent });
     }
 }
 

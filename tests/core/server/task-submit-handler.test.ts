@@ -25,10 +25,12 @@ describe('task submit daemon handler', () => {
         });
     });
 
-    it('broadcasts done and session list after successful task runs', async () => {
+    it('broadcasts done with final assistant content and session list after successful task runs', async () => {
         const session = new Session('session-1');
         const engine = {
-            runTask: vi.fn().mockResolvedValue(undefined),
+            runTask: vi.fn().mockImplementation(async () => {
+                session.addMessage({ role: 'assistant', content: 'Generated test plan' });
+            }),
         };
         const daemon = {
             broadcast: vi.fn(),
@@ -54,7 +56,10 @@ describe('task submit daemon handler', () => {
             },
         });
         expect(daemon.broadcast).toHaveBeenCalledWith('session:list', { sessions: [{ id: 'session-1' }] });
-        expect(daemon.broadcast).toHaveBeenCalledWith('agent:done', { id: 'task-1' });
+        expect(daemon.broadcast).toHaveBeenCalledWith('agent:done', {
+            id: 'task-1',
+            finalContent: 'Generated test plan',
+        });
     });
 
     it('broadcasts an error message and done when task execution fails', async () => {
@@ -91,6 +96,6 @@ describe('task submit daemon handler', () => {
             id: 'error-test',
         });
         expect(daemon.broadcast).toHaveBeenCalledWith('session:list', { sessions: [{ id: 'session-1' }] });
-        expect(daemon.broadcast).toHaveBeenCalledWith('agent:done', { id: 'task-2' });
+        expect(daemon.broadcast).toHaveBeenCalledWith('agent:done', { id: 'task-2', finalContent: '' });
     });
 });

@@ -15,6 +15,7 @@ import {
 } from './store/ws'
 import { attachToolError, upsertToolCallById } from './store/tool-call-linking'
 import { hydrateReplayView } from './store/replay-hydration'
+import { reconcileAgentDoneMessages, type AgentDonePayload } from './store/agent-done-reconciliation'
 import { mergePolicyDecision, parsePolicyDecisionTimestamp } from './store/policy-decision-ui.js'
 import type { ReplayExport } from '../../src/shared/replay-contract.js'
 import { LeftSidebar } from './components/LeftSidebar'
@@ -157,8 +158,9 @@ function App() {
   })
 
   // Agent 完成
-  useEvent('agent:done', () => {
+  useEvent('agent:done', (msg: RpcMessage) => {
     setAgentStreaming(false)
+    setMessages((prev) => reconcileAgentDoneMessages(prev, msg.data as AgentDonePayload | undefined))
   })
 
   // Session 被后端系统指令重置/切换

@@ -172,7 +172,7 @@ export type RpcEventContract = {
         reason?: string;
         timestamp?: string;
     };
-    'agent:done': RpcJsonObject;
+    'agent:done': RpcJsonObject & { id?: string; finalContent?: string };
     'agent:error': RpcJsonObject;
     'agent:approve': RpcJsonObject;
     'agent:session_changed': { sessionId: string };
