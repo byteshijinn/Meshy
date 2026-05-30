@@ -6,7 +6,8 @@ export const SUBAGENT_USAGE_GUIDANCE = [
     'Keep critical-path blocking work local when your next step depends on the result.',
     'Do not duplicate delegated work. Wait for the delegated report, then integrate it or continue with a clearly different task.',
     'When delegating, pass the exact agentName from the roster, a short taskName when useful, and a self-contained taskDescription with the expected output.',
-    'Prefer agents whose tool whitelist and persona match the delegated task.',
+    'Delegated agents can execute only granted read-only inspection tools. They cannot edit files, run shell commands, call MCP tools, or recursively delegate.',
+    'Prefer agents whose declared tool whitelist and persona match the delegated task; gather write/exec evidence locally before delegating.',
     '</subagent_usage>',
 ].join('\n');
 
@@ -20,8 +21,8 @@ export function formatSubagentRoster(agents: SubagentConfig[]): string {
             const description = agent.description || 'No description provided';
             const tools = agent.allowedTools.length > 0
                 ? agent.allowedTools.join(', ')
-                : 'all available tools';
-            return `- ${agent.name}: ${description} (model: ${agent.model}; tools: ${tools}; report: ${agent.reportFormat})`;
+                : 'all read-only inspection tools';
+            return `- ${agent.name}: ${description} (model: ${agent.model}; declared tools: ${tools}; delegate execution: read-only; report: ${agent.reportFormat})`;
         });
 
     return [

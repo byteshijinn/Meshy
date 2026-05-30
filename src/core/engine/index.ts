@@ -1405,7 +1405,6 @@ export class TaskEngine {
         const subagentRegistry = this.subagentRegistry;
         const providerResolver = this.providerResolver;
         const toolRegistryRef = this.toolRegistry;
-        const parentSession = this.session;
 
         this.toolRegistry.register(defineTool('delegateToAgent', {
             description: [
@@ -1423,7 +1422,9 @@ export class TaskEngine {
                     subagentRegistry,
                     providerResolver,
                     toolRegistry: toolRegistryRef,
-                    parentSession,
+                    parentSession: self.session,
+                    workspaceRoot: self.workspace.rootPath,
+                    abortSignal: self.abortController?.signal,
                 });
                 return { output: JSON.stringify(result) };
             },

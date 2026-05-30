@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import { TaskEngine } from '../../../src/core/engine/index.js';
 import { Session } from '../../../src/core/session/state.js';
-import type { ILLMProvider } from '../../../src/core/llm/provider.js';
+import type { ILLMProvider, StandardPrompt } from '../../../src/core/llm/provider.js';
 
 const cleanupPaths: string[] = [];
 
@@ -61,5 +61,58 @@ describe('TaskEngine subagent registry', () => {
         const engine = new TaskEngine(resolver as any, workspace as any, new Session('test'), { maxRetries: 1 });
 
         expect(engine.getSubagentRegistry().getAgent('workspace-reviewer')?.systemPrompt).toContain('Review only this workspace');
+    });
+
+    it('delegates with the currently active session after session swaps', async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'meshy-delegate-session-'));
+        cleanupPaths.push(root);
+        let capturedPrompt: StandardPrompt | null = null;
+
+        const provider: ILLMProvider = {
+            generateResponseStream: async (prompt, onEvent) => {
+                capturedPrompt = prompt;
+                onEvent({ type: 'text', data: 'done' });
+            },
+            supportsEmbedding: () => false,
+            generateEmbedding: async () => [],
+        };
+        const resolver = {
+            getProvider: () => provider,
+            getEmbeddingProvider: () => null,
+        };
+        const workspace = {
+            rootPath: root,
+            snapshotManager: {},
+            reflectionEngine: {},
+            memoryStore: {},
+            mcpHost: {
+                getAllTools: () => [],
+                getServerSummaries: () => [],
+            },
+            lspManager: {
+                startServer: async () => undefined,
+                getDiagnostics: () => [],
+            },
+        };
+
+        const oldSession = new Session('old-session');
+        oldSession.addMessage({ role: 'user', content: 'old context' });
+        const engine = new TaskEngine(resolver as any, workspace as any, oldSession, { maxRetries: 1 });
+
+        const activeSession = new Session('active-session');
+        activeSession.addMessage({ role: 'user', content: 'fresh context' });
+        engine.setSession(activeSession);
+
+        await engine.getToolRegistry().execute('delegateToAgent', {
+            agentName: 'reviewer',
+            taskDescription: 'Review current context.',
+        }, {
+            sessionId: activeSession.id,
+            workspaceRoot: root,
+            session: activeSession,
+        });
+
+        expect(capturedPrompt?.messages.map((message) => message.content)).toContain('fresh context');
+        expect(capturedPrompt?.messages.map((message) => message.content)).not.toContain('old context');
     });
 });

@@ -29,12 +29,14 @@ describe('subagent prompt helpers', () => {
 
         expect(roster).toContain('<subagents>');
         expect(roster).toContain('- reviewer: Find correctness and security issues');
-        expect(roster).toContain('tools: readFile, grepSearch');
+        expect(roster).toContain('declared tools: readFile, grepSearch');
+        expect(roster).toContain('delegate execution: read-only');
         expect(roster).toContain('- coder: Implement bounded patches');
-        expect(roster).toContain('tools: all available tools');
+        expect(roster).toContain('declared tools: all read-only inspection tools');
         expect(roster).toContain('</subagents>');
         expect(SUBAGENT_USAGE_GUIDANCE).toContain('Keep critical-path blocking work local');
         expect(SUBAGENT_USAGE_GUIDANCE).toContain('one synchronous call');
+        expect(SUBAGENT_USAGE_GUIDANCE).toContain('only granted read-only inspection tools');
         expect(SUBAGENT_USAGE_GUIDANCE).not.toContain('while a delegate runs');
     });
 });
