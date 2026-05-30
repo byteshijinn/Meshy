@@ -7,17 +7,12 @@ import {
     ILLMProvider,
     StandardPrompt,
 } from './provider.js';
+import { resolveProviderCapabilities, type ProviderCapabilityProfile, type ProviderSdkKey } from './capabilities.js';
 
-// Some providers don't natively support embeddings
-const NON_EMBEDDING_PATTERNS = ['deepseek', 'groq', 'together', 'fireworks', 'mistral', 'perplexity'];
-
-const BUNDLED_PROVIDERS: Record<string, (options: any) => any> = {
+const BUNDLED_PROVIDERS: Partial<Record<ProviderSdkKey, (options: any) => any>> = {
     'openai': createOpenAI,
-    '@ai-sdk/openai': createOpenAI,
     'anthropic': createAnthropic,
-    '@ai-sdk/anthropic': createAnthropic,
     'deepseek': createDeepSeek,
-    '@ai-sdk/deepseek': createDeepSeek,
 };
 
 export class VercelAIAdapter implements ILLMProvider {
@@ -26,22 +21,25 @@ export class VercelAIAdapter implements ILLMProvider {
     private baseURL?: string;
     private modelId: string;
     private model: any;
+    private capabilities: ProviderCapabilityProfile;
 
     constructor(
         sdkIdentifier: string,
         apiKey: string,
         modelId: string,
-        baseURL?: string
+        baseURL?: string,
+        providerName?: string,
     ) {
         this.sdkIdentifier = sdkIdentifier;
         this.apiKey = apiKey;
         this.modelId = modelId;
         this.baseURL = baseURL;
+        this.capabilities = resolveProviderCapabilities({ sdkIdentifier, providerName });
 
-        const factory = BUNDLED_PROVIDERS[sdkIdentifier];
+        const factory = BUNDLED_PROVIDERS[this.capabilities.sdkKey];
         if (factory) {
             const isCodexProxy = !!baseURL && (baseURL.includes('openai-codex-oauth') || baseURL.includes('127.0.0.1:8317'));
-            const normalizedBaseURL = (sdkIdentifier.includes('anthropic') && !isCodexProxy)
+            const normalizedBaseURL = (this.capabilities.stripV1BaseURL && !isCodexProxy)
                 ? baseURL?.replace(/\/v1\/?$/, '')
                 : baseURL;
 
@@ -308,9 +306,7 @@ export class VercelAIAdapter implements ILLMProvider {
     }
 
     supportsEmbedding(): boolean {
-        if (!this.baseURL) return true;
-        const url = this.baseURL.toLowerCase();
-        return !NON_EMBEDDING_PATTERNS.some(p => url.includes(p));
+        return this.capabilities.supportsEmbeddings;
     }
 
     async generateEmbedding(text: string): Promise<number[]> {

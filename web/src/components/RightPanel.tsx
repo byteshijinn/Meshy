@@ -89,6 +89,7 @@ function SkillsTab() {
     const [selectedSkill, setSelectedSkill] = useState<SkillItem | null>(null)
     const [selectedSkillContent, setSelectedSkillContent] = useState<string>('')
     const [editedSkillContent, setEditedSkillContent] = useState<string>('')
+    const [selectedSkillHash, setSelectedSkillHash] = useState<string | null>(null)
     const [detailViewMode, setDetailViewMode] = useState<'markdown' | 'raw' | 'edit'>('markdown')
     const [contentLoading, setContentLoading] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
@@ -96,7 +97,7 @@ function SkillsTab() {
     const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
     useEffect(() => {
-        sendRpc<{ skills: SkillItem[] }>('skill:list').then(res => setSkills(res?.skills || []))
+        sendRpc('skill:list').then(res => setSkills(res?.skills || []))
     }, [])
 
     // Debounced search
@@ -105,36 +106,40 @@ function SkillsTab() {
         if (debounceRef.current) clearTimeout(debounceRef.current)
         debounceRef.current = setTimeout(() => {
             if (q.trim()) {
-                sendRpc<{ skills: SkillItem[] }>('skill:search', { query: q }).then(res => setSkills(res?.skills || []))
+                sendRpc('skill:search', { query: q }).then(res => setSkills(res?.skills || []))
             } else {
-                sendRpc<{ skills: SkillItem[] }>('skill:list').then(res => setSkills(res?.skills || []))
+                sendRpc('skill:list').then(res => setSkills(res?.skills || []))
             }
         }, 300)
     }
 
     const handleRefresh = async () => {
         setRefreshing(true)
-        const res = await sendRpc<{ skills: SkillItem[] }>('skill:refresh')
+        const res = await sendRpc('skill:refresh')
         if (res?.skills) setSkills(res.skills)
         setRefreshing(false)
     }
 
     const handleSkillClick = async (skill: SkillItem) => {
         setSelectedSkill(skill)
+        setSelectedSkillHash(null)
         setContentLoading(true)
         setDetailViewMode('markdown')
         try {
-            const res = await sendRpc<{ success: boolean; content?: string }>('skill:read', { filePath: skill.filePath })
-            if (res?.success && res.content) {
+            const res = await sendRpc('skill:read', { filePath: skill.filePath })
+            if (res?.success && typeof res.content === 'string' && res.hash) {
                 setSelectedSkillContent(res.content)
                 setEditedSkillContent(res.content)
+                setSelectedSkillHash(res.hash)
             } else {
-                setSelectedSkillContent('Failed to load skill content.')
+                setSelectedSkillContent(res?.error || 'Failed to load skill content.')
                 setEditedSkillContent('')
+                setSelectedSkillHash(null)
             }
         } catch {
             setSelectedSkillContent('Error loading skill content.')
             setEditedSkillContent('')
+            setSelectedSkillHash(null)
         } finally {
             setContentLoading(false)
         }
@@ -142,14 +147,20 @@ function SkillsTab() {
 
     const handleSaveSkill = async () => {
         if (!selectedSkill) return
+        if (!selectedSkillHash) {
+            alert('Read the skill again before saving so Meshy can verify the latest file hash.')
+            return
+        }
         setIsSaving(true)
         try {
-            const res = await sendRpc<{ success: boolean; error?: string }>('skill:write', {
+            const res = await sendRpc('skill:write', {
                 filePath: selectedSkill.filePath,
-                content: editedSkillContent
+                content: editedSkillContent,
+                expectedHash: selectedSkillHash
             })
             if (res?.success) {
                 setSelectedSkillContent(editedSkillContent)
+                if (res.hash) setSelectedSkillHash(res.hash)
                 setDetailViewMode('markdown')
                 handleRefresh() // Refresh the list to update any metadata if changed
             } else {
@@ -164,14 +175,20 @@ function SkillsTab() {
 
     const handleDeleteSkill = async () => {
         if (!selectedSkill) return
+        if (!selectedSkillHash) {
+            alert('Read the skill again before deleting so Meshy can verify the latest file hash.')
+            return
+        }
         if (!window.confirm(`Are you sure you want to delete the skill "${selectedSkill.name}"? This will delete the skill folder and cannot be undone.`)) return
 
         try {
-            const res = await sendRpc<{ success: boolean; error?: string }>('skill:delete', {
-                filePath: selectedSkill.filePath
+            const res = await sendRpc('skill:delete', {
+                filePath: selectedSkill.filePath,
+                expectedHash: selectedSkillHash
             })
             if (res?.success) {
                 setSelectedSkill(null)
+                setSelectedSkillHash(null)
                 handleRefresh()
             } else {
                 alert(`Failed to delete: ${res?.error || 'Unknown error'}`)
@@ -366,7 +383,10 @@ function SkillsTab() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
                     }}
-                    onClick={() => setSelectedSkill(null)}
+                    onClick={() => {
+                        setSelectedSkill(null)
+                        setSelectedSkillHash(null)
+                    }}
                 >
                     <div
                         style={{
@@ -475,7 +495,10 @@ function SkillsTab() {
                                     </div>
                                 )}
                                 <button
-                                    onClick={() => setSelectedSkill(null)}
+                                    onClick={() => {
+                                        setSelectedSkill(null)
+                                        setSelectedSkillHash(null)
+                                    }}
                                     style={{
                                         background: 'transparent', border: 'none', color: 'var(--text-muted, #888)',
                                         cursor: 'pointer', fontSize: 20, padding: 4, display: 'flex', alignItems: 'center'

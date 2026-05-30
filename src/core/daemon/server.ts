@@ -14,6 +14,7 @@ import { EventEmitter } from 'events';
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { DaemonEventType, RpcEventData, RpcMessage } from '../rpc/contract.js';
 
 /**
  * 解析 public/ 静态资源目录。
@@ -43,34 +44,6 @@ function resolvePublicDir(): string {
     // 最终降级
     return candidates[0] || path.join(process.cwd(), 'public');
 }
-
-// ─── RPC 消息协议 ───
-export interface RpcMessage {
-    id?: string;
-    type: 'request' | 'response' | 'event';
-    method?: string;
-    params?: Record<string, unknown>;
-    result?: unknown;
-    error?: string;
-    name?: string;
-    data?: unknown;
-}
-
-// ─── 服务端事件类型 ───
-export type DaemonEventType =
-    | 'agent:text'            // Agent 流式文本输出
-    | 'agent:tool_call'       // Agent 发起工具调用
-    | 'agent:tool_result'     // 工具执行结果
-    | 'agent:policy_decision' // 工具策略决策事件（allow/deny + reason）
-    | 'agent:done'            // 任务完成
-    | 'agent:error'           // 错误
-    | 'agent:approve'         // Agent 请求审批
-    | 'agent:session_changed' // 会话刷新或重置
-    | 'approval:request'      // 沙盒审批请求（等待人类确认）
-    | 'session:update'        // Session 状态变更
-    | 'workspace:list'        // 工作区列表
-    | 'session:list'          // 会话列表
-    | 'router:decision';      // 路由决策通知
 
 export class DaemonServer extends EventEmitter {
     private wss: WebSocketServer | null = null;
@@ -256,7 +229,7 @@ export class DaemonServer extends EventEmitter {
     /**
      * 向所有已连接的客户端广播事件。
      */
-    public broadcast(eventType: DaemonEventType, data?: unknown): void {
+    public broadcast<E extends DaemonEventType>(eventType: E, data?: RpcEventData<E>): void {
         const msg: RpcMessage = {
             type: 'event',
             name: eventType,

@@ -263,7 +263,7 @@ export class ProviderResolver {
             throw new Error(`Provider "${providerName}" has neither "sdk" nor "protocol" configured.`);
         }
 
-        instance = new VercelAIAdapter(sdkOrProtocol, cfg.apiKey, modelId, cfg.baseUrl);
+        instance = new VercelAIAdapter(sdkOrProtocol, cfg.apiKey, modelId, cfg.baseUrl, providerName);
 
         this.instances.set(cacheKey, instance);
         return instance;

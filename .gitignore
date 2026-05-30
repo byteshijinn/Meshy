@@ -7,9 +7,14 @@ dist/
 docs/
 tmp/
 AGENTS.md
-tests/
 test-*/
 public/
 .agent/
 .worktrees/
-vitest.config.ts
+
+# Local/manual probes that require external services, secrets, or a running daemon.
+tests/deepseek_stream_test.mjs
+tests/test-embedding.ts
+tests/test-listmodels.js
+tests/test-rpc.js
+tests/test_run_command.ts

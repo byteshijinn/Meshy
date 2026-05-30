@@ -12,6 +12,7 @@ import { PluginRegistry } from './core/plugins/registry.js';
 import { ServerPluginAdapter } from './core/server/plugins/adapter.js';
 import { saveProjectedMcpConfig } from './core/plugins/runtime/mcp-persistence.js';
 import { rankSkills } from './core/skills/retrieval.js';
+import { registerSkillHandlers } from './core/daemon/skill-handlers.js';
 import { deriveSkillRetrievalBias } from './core/plugins/runtime/skill-bias.js';
 import type { ToolManifestEntry } from './core/tool/registry.js';
 import type { ToolPolicyMode } from './core/tool/registry.js';
@@ -926,58 +927,7 @@ export async function runServer(port: number) {
         }
     });
 
-    daemon.on('skill:read', async (params: any, ws, msgId) => {
-        try {
-            const filePath = params.filePath;
-            if (!filePath) {
-                return daemon.sendResponse(ws, msgId, { success: false, error: 'filePath is required' });
-            }
-            const content = await fs.promises.readFile(filePath, 'utf-8');
-            daemon.sendResponse(ws, msgId, { success: true, content });
-        } catch (err: any) {
-            daemon.sendResponse(ws, msgId, { success: false, error: err.message });
-        }
-    });
-
-    daemon.on('skill:write', async (params: any, ws, msgId) => {
-        try {
-            const { filePath, content } = params;
-            if (!filePath || typeof content !== 'string') {
-                return daemon.sendResponse(ws, msgId, { success: false, error: 'filePath and content are required' });
-            }
-            // Write to file
-            await fs.promises.writeFile(filePath, content, 'utf-8');
-
-            // Force refresh registry & db to keep metadata in sync
-            const scanned = engine.getSkillRegistry().refreshAll(activeWorkspace.rootPath);
-            await activeWorkspace.memoryStore.syncSkills(scanned);
-
-            daemon.sendResponse(ws, msgId, { success: true });
-        } catch (err: any) {
-            daemon.sendResponse(ws, msgId, { success: false, error: err.message });
-        }
-    });
-
-    daemon.on('skill:delete', async (params: any, ws, msgId) => {
-        try {
-            const { filePath } = params;
-            if (!filePath) {
-                return daemon.sendResponse(ws, msgId, { success: false, error: 'filePath is required' });
-            }
-
-            // Skill is a directory containing SKILL.md
-            const skillDir = path.dirname(filePath);
-            await fs.promises.rm(skillDir, { recursive: true, force: true });
-
-            // Force refresh registry & db to keep metadata in sync
-            const scanned = engine.getSkillRegistry().refreshAll(activeWorkspace.rootPath);
-            await activeWorkspace.memoryStore.syncSkills(scanned);
-
-            daemon.sendResponse(ws, msgId, { success: true });
-        } catch (err: any) {
-            daemon.sendResponse(ws, msgId, { success: false, error: err.message });
-        }
-    });
+    registerSkillHandlers({ daemon, engine, getWorkspace: () => activeWorkspace });
 
     daemon.on('mcp:list', (ws, msgId) => {
         daemon.sendResponse(ws, msgId, {

@@ -1,18 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { sortPolicyDecisionsNewestFirst } from './policy-decision-ui.js';
+import type { RpcMessage, RpcMethod, RpcParams, RpcResult } from '../../../src/core/rpc/contract.js';
 
-// ─── RPC 消息协议（与后端 DaemonServer 一致）───
-
-export interface RpcMessage {
-    id?: string;
-    type: 'request' | 'response' | 'event';
-    method?: string;
-    params?: Record<string, unknown>;
-    result?: unknown;
-    error?: string;
-    name?: string;
-    data?: unknown;
-}
+export type { RpcMessage } from '../../../src/core/rpc/contract.js';
 
 export interface ChatMessage {
     id: string;
@@ -223,7 +213,9 @@ function connectSSE(url: string, onStatusChange: (s: boolean) => void): EventSou
 /**
  * 发送 RPC 请求（HTTP POST）。
  */
-export async function sendRpc<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+export async function sendRpc<M extends RpcMethod>(method: M, params?: RpcParams<M>): Promise<RpcResult<M>>;
+export async function sendRpc<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+export async function sendRpc(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     const id = String(callIdCounter++);
     const payload = JSON.stringify({ id, type: 'request', method, params });
 
@@ -242,7 +234,7 @@ export async function sendRpc<T = unknown>(method: string, params: Record<string
         throw new Error(data.error);
     }
 
-    return data.result as T;
+    return data.result;
 }
 
 /**
