@@ -139,6 +139,12 @@ export const RPC_METHODS = [
 ] as const satisfies readonly (keyof RpcRequestContract)[];
 
 export type RpcMethod = typeof RPC_METHODS[number];
+const RPC_METHOD_SET = new Set<string>(RPC_METHODS);
+
+export function isRpcMethod(method: string | undefined): method is RpcMethod {
+    return typeof method === 'string' && RPC_METHOD_SET.has(method);
+}
+
 export type RpcParams<M extends RpcMethod> = RpcRequestContract[M]['params'];
 export type RpcResult<M extends RpcMethod> = RpcRequestContract[M]['result'];
 

@@ -15,6 +15,7 @@ import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DaemonEventType, RpcEventData, RpcMessage } from '../rpc/contract.js';
+import { parseApprovalResponse, routeRpcRequest } from './request-router.js';
 
 /**
  * 解析 public/ 静态资源目录。
@@ -296,241 +297,38 @@ export class DaemonServer extends EventEmitter {
 
     // ─── 处理客户端发来的消息 ───
     private handleClientMessage(ws: WebSocket, msg: RpcMessage): void {
-        switch (msg.method) {
-            case 'task:submit': {
-                const prompt = (msg.params?.prompt as string) || '';
-                this.emit('task:submit', prompt, msg.id);
-                break;
-            }
+        let approvalResponse;
+        try {
+            approvalResponse = parseApprovalResponse(msg);
+        } catch (err) {
+            this.sendTo(ws, {
+                id: msg.id,
+                type: 'response',
+                method: msg.method,
+                error: err instanceof Error ? err.message : String(err),
+            });
+            return;
+        }
 
-            case 'approval:response':
-            case 'approval:respond': { // 兼容旧版本
-                const approvalId = (msg.params?.id || msg.params?.approvalId) as string;
-                let answer = msg.params?.answer as string;
-                if (msg.params?.approved !== undefined) {
-                    answer = msg.params?.approved ? 'y' : 'n';
-                }
-                const resolve = this.pendingApprovals.get(approvalId);
-                if (resolve) {
-                    resolve(answer);
-                    this.pendingApprovals.delete(approvalId);
-                }
-                break;
+        if (approvalResponse) {
+            const resolve = this.pendingApprovals.get(approvalResponse.approvalId);
+            if (resolve) {
+                resolve(approvalResponse.answer);
+                this.pendingApprovals.delete(approvalResponse.approvalId);
             }
+            return;
+        }
 
-            case 'model:list': {
-                this.emit('model:list', ws, msg.id);
-                break;
-            }
-
-            case 'model:switch': {
-                const modelId = msg.params?.model as string;
-                this.emit('model:switch', modelId, ws, msg.id);
-                break;
-            }
-
-            case 'agent:list': {
-                this.emit('agent:list', ws, msg.id);
-                break;
-            }
-
-            case 'agent:switch': {
-                this.emit('agent:switch', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'command:list': {
-                this.emit('command:list', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'mention:list': {
-                this.emit('mention:list', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'session:interrupt': {
-                this.emit('session:interrupt', ws, msg.id);
-                break;
-            }
-
-            case 'session:delete': {
-                this.emit('session:delete', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'session:rename': {
-                this.emit('session:rename', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'session:compact': {
-                this.emit('session:compact', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'skill:list': {
-                this.emit('skill:list', ws, msg.id);
-                break;
-            }
-
-            case 'skill:search': {
-                this.emit('skill:search', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'skill:refresh': {
-                this.emit('skill:refresh', ws, msg.id);
-                break;
-            }
-
-            case 'skill:read': {
-                this.emit('skill:read', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'skill:write': {
-                this.emit('skill:write', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'skill:delete': {
-                this.emit('skill:delete', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'mcp:list': {
-                this.emit('mcp:list', ws, msg.id);
-                break;
-            }
-
-            case 'mcp:create': {
-                this.emit('mcp:create', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'mcp:update': {
-                this.emit('mcp:update', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'mcp:delete': {
-                this.emit('mcp:delete', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'mcp:toggle': {
-                this.emit('mcp:toggle', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'ritual:status': {
-                this.emit('ritual:status', ws, msg.id);
-                break;
-            }
-
-            case 'session:get': {
-                this.emit('session:get', ws, msg.id);
-                break;
-            }
-
-            case 'workspace:list': {
-                this.emit('workspace:list', ws, msg.id);
-                break;
-            }
-
-            case 'session:list': {
-                this.emit('session:list', ws, msg.id);
-                break;
-            }
-
-            case 'session:create': {
-                this.emit('session:create', ws, msg.id);
-                break;
-            }
-
-            case 'session:switch': {
-                const sessionId = msg.params?.sessionId as string;
-                this.emit('session:switch', sessionId, ws, msg.id);
-                break;
-            }
-
-            case 'capsules:list': {
-                this.emit('capsules:list', ws, msg.id);
-                break;
-            }
-
-            case 'blackboard:get': {
-                this.emit('blackboard:get', ws, msg.id);
-                break;
-            }
-
-            case 'session:replay': {
-                const sessionId = msg.params?.sessionId as string;
-                this.emit('session:replay', sessionId, ws, msg.id);
-                break;
-            }
-
-            case 'harness:fixture:create': {
-                this.emit('harness:fixture:create', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'harness:fixture:run': {
-                this.emit('harness:fixture:run', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'harness:run:get': {
-                this.emit('harness:run:get', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'harness:report:get': {
-                this.emit('harness:report:get', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'plugin:list': {
-                this.emit('plugin:list', ws, msg.id);
-                break;
-            }
-
-            case 'plugin:preset:list': {
-                this.emit('plugin:preset:list', ws, msg.id);
-                break;
-            }
-
-            case 'plugin:preset:enable': {
-                this.emit('plugin:preset:enable', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'plugin:preset:disable': {
-                this.emit('plugin:preset:disable', msg.params, ws, msg.id);
-                break;
-            }
-
-            case 'plugin:capabilities:get': {
-                this.emit('plugin:capabilities:get', ws, msg.id);
-                break;
-            }
-
-            case 'plugin:mcp:save': {
-                this.emit('plugin:mcp:save', msg.params, ws, msg.id);
-                break;
-            }
-
-            default:
-                this.sendTo(ws, {
-                    id: msg.id,
-                    type: 'response',
-                    method: msg.method,
-                    error: `Unknown method: ${msg.method}`,
-                });
+        const routeResult = routeRpcRequest(this, ws, msg);
+        if (!routeResult.ok) {
+            this.sendTo(ws, {
+                id: msg.id,
+                type: 'response',
+                method: msg.method,
+                error: routeResult.error,
+            });
         }
     }
-
     /**
      * 向单个客户端发送响应消息。
      */
