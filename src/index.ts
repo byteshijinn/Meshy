@@ -442,6 +442,68 @@ export function searchSkillsWithBias(
     }).map(entry => entry.skill);
 }
 
+export interface TaskSubmitHandlerDeps {
+    getSession: () => Session;
+    engine: {
+        runTask: (prompt: string, context?: any) => Promise<void>;
+    };
+    daemon: {
+        broadcast: (event: any, payload?: any) => void;
+    };
+    sessionManager: {
+        listSessions: () => unknown[];
+    };
+    createErrorEventId?: () => string;
+}
+
+export function normalizeSubmittedTaskPayload(payload: any): { submittedPrompt: string; contextOpts: any } {
+    if (typeof payload === 'string') {
+        return { submittedPrompt: payload, contextOpts: {} };
+    }
+
+    return {
+        submittedPrompt: payload?.prompt || '',
+        contextOpts: {
+            mode: payload?.mode,
+            attachments: payload?.attachments,
+            generationOptions: {
+                temperature: typeof payload?.temperature === 'number' ? payload.temperature : undefined,
+                maxTokens: typeof payload?.maxTokens === 'number' ? payload.maxTokens : undefined,
+                topP: typeof payload?.topP === 'number' ? payload.topP : undefined,
+            },
+        },
+    };
+}
+
+export async function handleTaskSubmitFromDaemon(
+    payload: any,
+    id: string | undefined,
+    deps: TaskSubmitHandlerDeps,
+): Promise<void> {
+    const { submittedPrompt, contextOpts } = normalizeSubmittedTaskPayload(payload);
+
+    console.log(`\n[Meshy] Received task from Web UI: ${submittedPrompt}`);
+    try {
+        const session = deps.getSession();
+        const isNew = session.history.length === 0;
+        if (isNew) {
+            session.title = submittedPrompt.slice(0, 30) + (submittedPrompt.length > 30 ? '...' : '');
+        }
+
+        await deps.engine.runTask(submittedPrompt, contextOpts);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[Meshy] Task from Web UI failed:', message);
+        deps.daemon.broadcast('agent:text', {
+            text: `\n[Error] Task failed: ${message}\n`,
+            id: deps.createErrorEventId?.() ?? `error-${Date.now()}`,
+        });
+    } finally {
+        deps.daemon.broadcast('session:list', { sessions: deps.sessionManager.listSessions() });
+        deps.daemon.broadcast('agent:done', { id });
+    }
+}
+
 export async function runServer(port: number) {
     const config = loadConfig();
     const providerNames = Object.keys(config.providers);
@@ -504,40 +566,12 @@ export async function runServer(port: number) {
 
     // 监听 Web UI 发来的独立任务
     daemon.on('task:submit', async (payload: any, id?: string) => {
-        let submittedPrompt = '';
-        let contextOpts: any = {};
-
-        if (typeof payload === 'string') {
-            submittedPrompt = payload;
-        } else {
-            submittedPrompt = payload.prompt || '';
-            contextOpts = {
-                mode: payload.mode,
-                attachments: payload.attachments,
-                generationOptions: {
-                    temperature: typeof payload.temperature === 'number' ? payload.temperature : undefined,
-                    maxTokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : undefined,
-                    topP: typeof payload.topP === 'number' ? payload.topP : undefined,
-                },
-            };
-        }
-
-        console.log(`\n[Meshy] Received task from Web UI: ${submittedPrompt}`);
-        try {
-            const isNew = session.history.length === 0;
-            if (isNew) {
-                // Auto-name empty session based on prompt
-                session.title = submittedPrompt.slice(0, 30) + (submittedPrompt.length > 30 ? '...' : '');
-            }
-
-            await engine.runTask(submittedPrompt, contextOpts);
-
-            // Always broadcast session list after a task finishes (so new sessions and new titles appear)
-            daemon.broadcast('session:list', { sessions: sessionManager.listSessions() });
-            daemon.broadcast('agent:done', { id });
-        } catch (err) {
-            console.error('[Meshy] Task from Web UI failed:', err);
-        }
+        await handleTaskSubmitFromDaemon(payload, id, {
+            getSession: () => session,
+            engine,
+            daemon,
+            sessionManager,
+        });
     });
 
     daemon.on('session:interrupt', () => {
