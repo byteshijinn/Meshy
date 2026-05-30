@@ -206,6 +206,9 @@ export class VercelAIAdapter implements ILLMProvider {
                 messages,
                 system: prompt.systemPrompt,
                 tools: Object.keys(tools).length > 0 ? tools : undefined,
+                temperature: prompt.temperature,
+                maxOutputTokens: prompt.maxTokens,
+                topP: prompt.topP,
                 abortSignal
             } as any);
 
@@ -279,6 +282,9 @@ export class VercelAIAdapter implements ILLMProvider {
                     messages,
                     system: prompt.systemPrompt,
                     tools: Object.keys(tools).length > 0 ? tools : undefined,
+                    temperature: prompt.temperature,
+                    maxOutputTokens: prompt.maxTokens,
+                    topP: prompt.topP,
                     abortSignal
                 } as any);
 

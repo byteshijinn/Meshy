@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   useWebSocket,
   useEvent,
@@ -21,9 +21,18 @@ import { LeftSidebar } from './components/LeftSidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { RightPanel } from './components/RightPanel'
 import { InputArea } from './components/InputArea'
+import { SettingsPanel } from './components/SettingsPanel'
 
 type SessionActionPayload = {
   title?: string
+}
+
+function loadNumberSetting(key: string, fallback: number, min?: number, max?: number): number {
+  const value = Number(localStorage.getItem(key))
+  if (!Number.isFinite(value)) return fallback
+  if (min !== undefined && value < min) return fallback
+  if (max !== undefined && value > max) return fallback
+  return value
 }
 
 function App() {
@@ -36,6 +45,34 @@ function App() {
   const [activeSession, setActiveSession] = useState<{ id: string; title?: string } | null>(null)
   const [policyDecisions, setPolicyDecisions] = useState<PolicyDecisionEvent[]>(() => getPolicyDecisionTimeline())
   const [policyDecisionHistory, setPolicyDecisionHistory] = useState<PolicyDecisionEvent[]>(() => getPolicyDecisionHistory())
+  const [showSettings, setShowSettings] = useState(false)
+  const [showReasoning, setShowReasoning] = useState(() => localStorage.getItem('meshy-show-reasoning') !== 'false')
+  const [fineTuneTemp, setFineTuneTemp] = useState(() => loadNumberSetting('meshy-temperature', 0.7, 0, 2))
+  const [fineTuneMaxTokens, setFineTuneMaxTokens] = useState(() => loadNumberSetting('meshy-max-tokens', 4096, 256, 200000))
+  const [fineTuneTopP, setFineTuneTopP] = useState(() => loadNumberSetting('meshy-top-p', 1, 0, 1))
+
+  useEffect(() => {
+    localStorage.setItem('meshy-show-reasoning', String(showReasoning))
+  }, [showReasoning])
+
+  useEffect(() => {
+    localStorage.setItem('meshy-temperature', String(fineTuneTemp))
+  }, [fineTuneTemp])
+
+  useEffect(() => {
+    localStorage.setItem('meshy-max-tokens', String(fineTuneMaxTokens))
+  }, [fineTuneMaxTokens])
+
+  useEffect(() => {
+    localStorage.setItem('meshy-top-p', String(fineTuneTopP))
+  }, [fineTuneTopP])
+
+  const resetGenerationSettings = useCallback(() => {
+    setShowReasoning(true)
+    setFineTuneTemp(0.7)
+    setFineTuneMaxTokens(4096)
+    setFineTuneTopP(1)
+  }, [])
 
   // 确保存在当前轮次的 Agent 消息容器，用于挂载 toolCalls / 错误等状态
   const ensureAgentContainer = useCallback((prev: ChatMessage[]): { list: ChatMessage[]; agent: ChatMessage } => {
@@ -342,9 +379,16 @@ function App() {
       setAgentStreaming(true)
 
       // 通过 RPC 提交任务
-      sendRpc('task:submit', { prompt: text, mode, attachments })
+      sendRpc('task:submit', {
+        prompt: text,
+        mode,
+        attachments,
+        temperature: fineTuneTemp,
+        maxTokens: fineTuneMaxTokens,
+        topP: fineTuneTopP,
+      })
     },
-    [],
+    [fineTuneMaxTokens, fineTuneTemp, fineTuneTopP],
   )
 
   // 审批回复
@@ -401,6 +445,7 @@ function App() {
         connected={connected}
         activeSessionId={activeSession?.id || null}
         onSessionSwitch={handleSessionSwitch}
+        onSettingsOpen={() => setShowSettings(true)}
       />
       <div className="center-panel">
         <ChatPanel
@@ -408,6 +453,8 @@ function App() {
           onApproval={handleApproval}
           activeSession={activeSession}
           onSessionAction={handleSessionAction}
+          showReasoning={showReasoning}
+          agentStreaming={agentStreaming}
         />
         <InputArea
           onSend={handleSend}
@@ -417,6 +464,21 @@ function App() {
         />
       </div>
       <RightPanel policyDecisions={policyDecisions} policyDecisionHistory={policyDecisionHistory} />
+
+      {showSettings && (
+        <SettingsPanel
+          temperature={fineTuneTemp}
+          maxTokens={fineTuneMaxTokens}
+          topP={fineTuneTopP}
+          showReasoning={showReasoning}
+          onTemperatureChange={setFineTuneTemp}
+          onMaxTokensChange={setFineTuneMaxTokens}
+          onTopPChange={setFineTuneTopP}
+          onShowReasoningChange={setShowReasoning}
+          onReset={resetGenerationSettings}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {/* Blackboard Drawer (no more floating toggle – it's in InputArea toolbar) */}
       <div className={`bb-drawer ${bbOpen ? 'open' : ''}`}>

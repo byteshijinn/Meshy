@@ -47,9 +47,19 @@ export interface RpcSkillDeleteParams {
 }
 
 export type RpcRequestContract = {
-    'task:submit': { params: { prompt: string; attachments?: unknown[] }; result: RpcSuccessResponse };
-    'approval:response': { params: { id?: string; approvalId?: string; answer?: string; approved?: boolean }; result: void };
-    'approval:respond': { params: { id?: string; approvalId?: string; answer?: string; approved?: boolean }; result: void };
+    'task:submit': {
+        params: {
+            prompt: string;
+            mode?: string;
+            attachments?: unknown[];
+            temperature?: number;
+            maxTokens?: number;
+            topP?: number;
+        };
+        result: RpcSuccessResponse;
+    };
+    'approval:response': { params: { id?: string; approvalId?: string; answer?: string; approved?: boolean }; result: RpcSuccessResponse };
+    'approval:respond': { params: { id?: string; approvalId?: string; answer?: string; approved?: boolean }; result: RpcSuccessResponse };
     'model:list': { params: RpcJsonObject; result: unknown };
     'model:switch': { params: { model: string }; result: RpcSuccessResponse };
     'agent:list': { params: RpcJsonObject; result: unknown };

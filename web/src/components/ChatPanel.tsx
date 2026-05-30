@@ -11,9 +11,11 @@ interface Props {
     onApproval: (id: string, approved: boolean) => void;
     activeSession: { id: string; title?: string } | null;
     onSessionAction: (action: 'rename' | 'compact' | 'delete', payload?: { title?: string }) => void;
+    showReasoning?: boolean;
+    agentStreaming?: boolean;
 }
 
-export function ChatPanel({ messages, onApproval, activeSession, onSessionAction }: Props) {
+export function ChatPanel({ messages, onApproval, activeSession, onSessionAction, showReasoning = true, agentStreaming = false }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
@@ -297,13 +299,23 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
                     return (
                         <div id={`msg-${msg.id || i}`} key={msg.id || i} className={`chat-msg ${msg.role}`}>
                             {/* 思考过程 (DeepSeek-Reasoner) */}
-                            {msg.reasoningContent && (
+                            {msg.reasoningContent && msg.reasoningContent !== msg.content && showReasoning && (
                                 <details className="reasoning-block">
                                     <summary>🤔 Thinking Process</summary>
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock, pre: PreBlock }}>
                                         {msg.reasoningContent}
                                     </ReactMarkdown>
                                 </details>
+                            )}
+                            {msg.reasoningContent && msg.reasoningContent !== msg.content && !showReasoning && (
+                                <div className="reasoning-hidden-badge">
+                                    <span className="reasoning-dot" /> AI reasoned about this response
+                                </div>
+                            )}
+                            {msg.reasoningContent && msg.reasoningContent === msg.content && (
+                                <div className="reasoning-inline-badge">
+                                    Generated via reasoning
+                                </div>
                             )}
 
                             {/* 文本内容 */}
@@ -409,7 +421,11 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
                                             <div className="tool-block-body" onClick={(e) => e.stopPropagation()}>
                                                 <ToolPolicyDecisionBadge decision={tc.policyDecision} />
                                                 <div className="arg-box"><strong>Input:</strong> {tc.args}</div>
-                                                {tc.result && <div className="result-box"><strong>Output:</strong> {tc.result}</div>}
+                                                {tc.result && (
+                                                    <div className="result-box">
+                                                        <strong>Output:</strong> {typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result, null, 2)}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -441,6 +457,17 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
                         </div>
                     )
                 })}
+
+                {agentStreaming && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
+                    <div className="thinking-indicator">
+                        <div className="thinking-dots">
+                            <span />
+                            <span />
+                            <span />
+                        </div>
+                        <span>Thinking...</span>
+                    </div>
+                )}
             </div>
         </div>
     )

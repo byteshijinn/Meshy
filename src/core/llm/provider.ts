@@ -33,6 +33,12 @@ export interface StandardToolResult {
     metadata?: Record<string, unknown>;
 }
 
+export interface StandardGenerationOptions {
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+}
+
 export interface AgentMessageEvent {
     type: 'text' | 'tool_call_start' | 'tool_call_chunk' | 'tool_call_end' | 'done' | 'error' | 'reasoning_chunk';
     data?: any;
@@ -43,6 +49,9 @@ export interface StandardPrompt {
     systemPrompt?: string;
     messages: StandardMessage[];
     tools?: StandardTool[];
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
 }
 
 export interface ILLMProvider {

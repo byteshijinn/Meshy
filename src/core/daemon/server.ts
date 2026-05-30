@@ -315,7 +315,10 @@ export class DaemonServer extends EventEmitter {
             if (resolve) {
                 resolve(approvalResponse.answer);
                 this.pendingApprovals.delete(approvalResponse.approvalId);
+            } else {
+                console.warn(`[Daemon] approval response ignored; unknown or already resolved id: "${approvalResponse.approvalId}"`);
             }
+            this.sendResponse(ws, msg.id, { success: true });
             return;
         }
 

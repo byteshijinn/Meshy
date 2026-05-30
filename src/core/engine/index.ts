@@ -1,4 +1,4 @@
-import { ILLMProvider, StandardPrompt } from '../llm/provider.js';
+import { ILLMProvider, StandardGenerationOptions, StandardPrompt } from '../llm/provider.js';
 import { ProviderResolver } from '../llm/resolver.js';
 import { AgentComputerInterface } from '../aci/index.js';
 import { Session } from '../session/state.js';
@@ -42,6 +42,12 @@ export interface EngineOptions {
     executionMode?: ExecutionMode;
     askUser?: AskUserCallback;
     daemon?: DaemonServer;
+}
+
+export interface TaskRunContext {
+    mode?: string;
+    attachments?: { name: string, type: string, data: string }[];
+    generationOptions?: StandardGenerationOptions;
 }
 
 const BASE_SYSTEM_PROMPT = `You are Meshy, the best local-first coding agent.
@@ -278,6 +284,7 @@ export class TaskEngine {
     private async handleSlashCommand(
         command: import('../router/input-parser.js').SlashCommand,
         parsed: ParsedInput,
+        generationOptions?: StandardGenerationOptions,
     ): Promise<void> {
         let systemOutput = '';
         switch (command.type) {
@@ -617,7 +624,7 @@ export class TaskEngine {
                     );
 
                     // 进入正常的 LLM 推理循环
-                    await this.runLLMLoop(injection);
+                    await this.runLLMLoop(injection, generationOptions);
                 }
                 break;
 
@@ -655,7 +662,7 @@ export class TaskEngine {
      * Main execution loop.
      * Phase 2 增强：先走 InputParser 控制语法 → IntentRouter 分类 → LazyInjector 动态组装。
      */
-    public async runTask(userPrompt: string, context?: { mode?: string, attachments?: { name: string, type: string, data: string }[] }): Promise<void> {
+    public async runTask(userPrompt: string, context?: TaskRunContext): Promise<void> {
         if (this.isRunning) {
             console.log(`[Engine] Mission already in progress. Ignoring new input: ${userPrompt}`);
             this.daemon?.broadcast('agent:text', { text: '\n[System]: A task is currently running. Please wait or stop it first.\n', id: `sys-${Date.now()}` });
@@ -672,7 +679,7 @@ export class TaskEngine {
         }
     }
 
-    private async _runTaskInternal(userPrompt: string, context?: { mode?: string, attachments?: { name: string, type: string, data: string }[] }): Promise<void> {
+    private async _runTaskInternal(userPrompt: string, context?: TaskRunContext): Promise<void> {
         // Phase 4: 初始化记忆库
         await this.workspace.memoryStore.initialize();
 
@@ -684,7 +691,7 @@ export class TaskEngine {
 
         // 处理 slash 命令（拦截并提前返回）
         if (parsed.slashCommand) {
-            await this.handleSlashCommand(parsed.slashCommand, parsed);
+            await this.handleSlashCommand(parsed.slashCommand, parsed, context?.generationOptions);
             return;
         }
 
@@ -747,7 +754,7 @@ export class TaskEngine {
                         injection.subagent = { ...(injection.subagent || {} as any), model: cmdConfig.model };
                     }
 
-                    await this.runLLMLoop(injection);
+                    await this.runLLMLoop(injection, context?.generationOptions);
                     return;
                 }
             }
@@ -914,7 +921,7 @@ export class TaskEngine {
             }
         }
 
-        await this.runLLMLoopWithDynamicInjection(parsed, decision, basePrompt);
+        await this.runLLMLoopWithDynamicInjection(parsed, decision, basePrompt, context?.generationOptions);
 
         // Execution finished successfully, history is preserved in the ongoing session.
     }
@@ -1000,6 +1007,7 @@ export class TaskEngine {
         parsed: import('../router/input-parser.js').ParsedInput,
         decision: import('../router/intent.js').RoutingDecision,
         basePrompt: string,
+        generationOptions?: StandardGenerationOptions,
     ): Promise<void> {
         let currentParsed = parsed;
         let currentDecision = decision;
@@ -1033,7 +1041,7 @@ export class TaskEngine {
                 (this.session as any).runtimeDecisions.push(decisionRecord);
             }
 
-            const loopResult = await this.runSingleLLMIteration(injection);
+            const loopResult = await this.runSingleLLMIteration(injection, generationOptions);
             if (!loopResult?.continueLoop) break;
 
             currentParsed = {
@@ -1044,12 +1052,18 @@ export class TaskEngine {
         }
     }
 
-    private async runSingleLLMIteration(injection: import('../injector/lazy.js').InjectionResult): Promise<any> {
-        await this.runLLMLoop(injection);
+    private async runSingleLLMIteration(
+        injection: import('../injector/lazy.js').InjectionResult,
+        generationOptions?: StandardGenerationOptions,
+    ): Promise<any> {
+        await this.runLLMLoop(injection, generationOptions);
         return { continueLoop: false };
     }
 
-    private async runLLMLoop(injection: import('../injector/lazy.js').InjectionResult): Promise<void> {
+    private async runLLMLoop(
+        injection: import('../injector/lazy.js').InjectionResult,
+        generationOptions?: StandardGenerationOptions,
+    ): Promise<void> {
         let isDone = false;
         let retries = 0;
 
@@ -1090,6 +1104,7 @@ export class TaskEngine {
                         systemPrompt: injection.systemPrompt,
                         messages: this.session.history,
                         tools: allTools,
+                        ...generationOptions,
                     };
 
                     interface PendingToolCall {

@@ -33,6 +33,9 @@ const PARAM_SCHEMAS: Partial<Record<RpcMethod, ZodTypeAny>> = {
         prompt: z.string().optional(),
         mode: z.string().optional(),
         attachments: z.array(z.unknown()).optional(),
+        temperature: z.number().min(0).max(2).optional(),
+        maxTokens: z.number().int().positive().optional(),
+        topP: z.number().min(0).max(1).optional(),
     }).passthrough(),
     'approval:response': z.object({
         id: z.string().optional(),
@@ -151,7 +154,7 @@ export function parseApprovalResponse(msg: RpcMessage): ApprovalResponsePayload 
 
     let answer = typeof params.answer === 'string' ? params.answer : '';
     if (params.approved !== undefined) {
-        answer = params.approved ? 'y' : 'n';
+        answer = params.approved ? 'yes' : 'no';
     }
 
     return { approvalId, answer };

@@ -43,12 +43,54 @@ describe('DaemonServer RPC routing', () => {
             id: 'task-1',
             type: 'request',
             method: 'task:submit',
-            params: { prompt: 'hello', mode: 'plan', attachments: [{ name: 'a.txt' }] },
+            params: { prompt: 'hello', mode: 'plan', attachments: [{ name: 'a.txt' }], temperature: 0.2, maxTokens: 1024, topP: 0.9 },
         });
 
         const routed = emitted.find(entry => entry.event === 'task:submit');
-        expect(routed?.args[0]).toEqual({ prompt: 'hello', mode: 'plan', attachments: [{ name: 'a.txt' }] });
+        expect(routed?.args[0]).toEqual({ prompt: 'hello', mode: 'plan', attachments: [{ name: 'a.txt' }], temperature: 0.2, maxTokens: 1024, topP: 0.9 });
         expect(routed?.args[1]).toBe('task-1');
+    });
+
+    it('acknowledges approval responses and resolves boolean approvals as yes/no', () => {
+        const daemon = new DaemonServer(0) as any;
+        const ws = { readyState: 1, send: vi.fn() } as any;
+        const resolve = vi.fn();
+        daemon.pendingApprovals.set('approval-1', resolve);
+
+        daemon.handleClientMessage(ws, {
+            id: 'approval-response',
+            type: 'request',
+            method: 'approval:response',
+            params: { id: 'approval-1', approved: true },
+        });
+
+        expect(resolve).toHaveBeenCalledWith('yes');
+        expect(daemon.pendingApprovals.has('approval-1')).toBe(false);
+        expect(ws.send).toHaveBeenCalledTimes(1);
+        const response = JSON.parse(ws.send.mock.calls[0][0]);
+        expect(response.result).toEqual({ success: true });
+    });
+
+    it('acknowledges stale approval responses and logs a warning', () => {
+        const daemon = new DaemonServer(0) as any;
+        const ws = { readyState: 1, send: vi.fn() } as any;
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        try {
+            daemon.handleClientMessage(ws, {
+                id: 'stale-approval',
+                type: 'request',
+                method: 'approval:respond',
+                params: { id: 'missing-approval', approved: false },
+            });
+
+            expect(warn).toHaveBeenCalledWith(expect.stringContaining('missing-approval'));
+            expect(ws.send).toHaveBeenCalledTimes(1);
+            const response = JSON.parse(ws.send.mock.calls[0][0]);
+            expect(response.result).toEqual({ success: true });
+        } finally {
+            warn.mockRestore();
+        }
     });
 
     it('rejects invalid params before emitting a handler event', () => {

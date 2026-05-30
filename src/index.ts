@@ -511,7 +511,15 @@ export async function runServer(port: number) {
             submittedPrompt = payload;
         } else {
             submittedPrompt = payload.prompt || '';
-            contextOpts = { mode: payload.mode, attachments: payload.attachments };
+            contextOpts = {
+                mode: payload.mode,
+                attachments: payload.attachments,
+                generationOptions: {
+                    temperature: typeof payload.temperature === 'number' ? payload.temperature : undefined,
+                    maxTokens: typeof payload.maxTokens === 'number' ? payload.maxTokens : undefined,
+                    topP: typeof payload.topP === 'number' ? payload.topP : undefined,
+                },
+            };
         }
 
         console.log(`\n[Meshy] Received task from Web UI: ${submittedPrompt}`);
