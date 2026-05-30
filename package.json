@@ -16,6 +16,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "packageManager": "npm@10.9.7",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",
     "@ai-sdk/deepseek": "^2.0.24",
