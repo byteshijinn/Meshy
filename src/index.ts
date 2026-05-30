@@ -457,9 +457,9 @@ export async function runServer(port: number) {
     let session: import('./core/session/state.js').Session;
     const summaries = sessionManager.listSessions();
     if (summaries.length > 0) {
-        session = sessionManager.loadSession(summaries[0].id) || sessionManager.createSession();
+        session = sessionManager.loadSession(summaries[0].id) || sessionManager.createSavedSession();
     } else {
-        session = sessionManager.createSession();
+        session = sessionManager.createSavedSession();
     }
 
     // 启动 Daemon Server
@@ -581,9 +581,9 @@ export async function runServer(port: number) {
             // Load latest session or create new
             const summaries = sessionManager.listSessions();
             if (summaries.length > 0) {
-                session = sessionManager.loadSession(summaries[0].id) || sessionManager.createSession();
+                session = sessionManager.loadSession(summaries[0].id) || sessionManager.createSavedSession();
             } else {
-                session = sessionManager.createSession();
+                session = sessionManager.createSavedSession();
             }
             engine.setSession(session);
 
@@ -624,7 +624,7 @@ export async function runServer(port: number) {
     });
 
     daemon.on('session:create', (ws: import('ws').WebSocket, msgId: string) => {
-        const newSession = sessionManager.createSession();
+        const newSession = sessionManager.createSavedSession();
         console.log(`[Meshy] Web UI created new session: ${newSession.id}`);
 
         // Fix: Explicitly update the global session state and task engine
@@ -693,7 +693,7 @@ export async function runServer(port: number) {
                         newActiveId = session.id;
                     }
                 } else {
-                    const fresh = sessionManager.createSession();
+                    const fresh = sessionManager.createSavedSession();
                     session = fresh;
                     engine.setSession(fresh);
                     newActiveId = fresh.id;

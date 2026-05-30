@@ -105,6 +105,15 @@ export class SessionManager {
     }
 
     /**
+     * Create and immediately persist a session so it is visible to session:list.
+     */
+    public createSavedSession(): Session {
+        const session = this.createSession();
+        this.saveSession(session);
+        return session;
+    }
+
+    /**
      * Load a specific session by ID (alias for resumeSession for backward compat).
      */
     public loadSession(sessionId: string): Session | null {
