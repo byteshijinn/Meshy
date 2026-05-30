@@ -12,6 +12,7 @@ import {
   type ChatMessage,
   type RpcMessage,
   type PolicyDecisionEvent,
+  type ToolCallInfo,
 } from './store/ws'
 import { attachToolError, upsertToolCallById } from './store/tool-call-linking'
 import { hydrateReplayView } from './store/replay-hydration'
@@ -214,10 +215,15 @@ function App() {
         reason: string;
         timestamp?: string | number;
       };
+      delegateTrace?: ToolCallInfo['delegateTrace'];
+      metadata?: {
+        delegateTrace?: ToolCallInfo['delegateTrace'];
+      };
     }
     const toolName = data.name || data.tool || 'unknown_tool'
     const isError = data.isError ?? (data.success === false)
     const resultText = data.result ?? (isError ? 'Tool execution failed.' : 'Tool execution completed.')
+    const delegateTrace = data.delegateTrace ?? data.metadata?.delegateTrace
 
     setMessages((prev) => {
       const { list, agent } = ensureAgentContainer(prev)
@@ -228,6 +234,7 @@ function App() {
         name: toolName,
         result: resultText,
         status: (isError ? 'error' : 'done') as 'error' | 'done',
+        delegateTrace,
         policyDecision: mergePolicyDecision(data.policyDecision, existingPolicyDecision),
       })
 

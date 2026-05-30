@@ -18,6 +18,7 @@ import type { ReplayEvent, ReplayExport, ReplayMetrics, ReplayStep } from '../..
 import { normalizeReplayExport } from '../../shared/replay-export-normalization.js';
 import { deriveReplayEvents as deriveReplayEventTimeline, type ReplayDerivedStepEvent } from '../../shared/replay-event-derivation.js';
 import { getReplayStepProjection } from '../../shared/replay-step-projection.js';
+import { normalizeDelegateTracePayload } from '../../shared/delegate-trace.js';
 
 export type { ReplayEvent, ReplayExport, ReplayMetrics, ReplayStep } from '../../shared/replay-contract.js';
 
@@ -178,6 +179,9 @@ function messageToStep(msg: StandardMessage, index: number): ReplayStep {
 
     if (content.type === 'tool_result') {
         const tr = content as StandardToolResult;
+        const metadata = tr.metadata && typeof tr.metadata === 'object'
+            ? tr.metadata as Record<string, unknown>
+            : undefined;
         const truncated = tr.content.length > 150
             ? tr.content.slice(0, 150) + '...'
             : tr.content;
@@ -193,9 +197,7 @@ function messageToStep(msg: StandardMessage, index: number): ReplayStep {
                 content: tr.content,
                 isError: Boolean(tr.isError),
                 policyDecision: (() => {
-                    const decision = tr.metadata && typeof tr.metadata === 'object'
-                        ? (tr.metadata as Record<string, unknown>).policyDecision
-                        : undefined;
+                    const decision = metadata?.policyDecision;
                     if (!decision || typeof decision !== 'object') return undefined;
                     const record = decision as Record<string, unknown>;
                     if ((record.decision !== 'allow' && record.decision !== 'deny')
@@ -212,6 +214,7 @@ function messageToStep(msg: StandardMessage, index: number): ReplayStep {
                         timestamp: typeof record.timestamp === 'string' ? record.timestamp : undefined,
                     };
                 })(),
+                delegateTrace: normalizeDelegateTracePayload(metadata?.delegateTrace),
             },
             raw: tr,
         };
@@ -306,6 +309,7 @@ function deriveReplayEvents(
                 toolName: toolNamesById.get(projection.toolCallId) ?? 'unknown_tool',
                 content: projection.content,
                 isError: projection.isError,
+                ...(projection.delegateTrace ? { delegateTrace: projection.delegateTrace } : {}),
             });
         }
     }

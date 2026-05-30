@@ -393,6 +393,7 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
                                 }
 
                                 const displayTarget = toolTarget ? ` ` + toolTarget : '';
+                                const delegateTrace = tc.delegateTrace;
 
                                 // Inline 模式 (Running)
                                 if (isRunning) {
@@ -421,7 +422,50 @@ export function ChatPanel({ messages, onApproval, activeSession, onSessionAction
                                             <div className="tool-block-body" onClick={(e) => e.stopPropagation()}>
                                                 <ToolPolicyDecisionBadge decision={tc.policyDecision} />
                                                 <div className="arg-box"><strong>Input:</strong> {tc.args}</div>
-                                                {tc.result && (
+                                                {delegateTrace && (
+                                                    <div className="delegate-trace-box">
+                                                        <div className="delegate-trace-header">
+                                                            <strong>Delegate:</strong> {delegateTrace.agentName}
+                                                            {delegateTrace.taskName && <span className="delegate-trace-muted"> / {delegateTrace.taskName}</span>}
+                                                            <span className={`delegate-trace-status ${delegateTrace.success ? 'success' : 'error'}`}>
+                                                                {delegateTrace.success ? 'completed' : 'failed'}
+                                                            </span>
+                                                        </div>
+                                                        {delegateTrace.sessionId && (
+                                                            <div className="delegate-trace-muted">session {delegateTrace.sessionId}</div>
+                                                        )}
+                                                        <div className="delegate-trace-row">
+                                                            <span>tools</span>
+                                                            <code>{delegateTrace.toolsGranted.length > 0 ? delegateTrace.toolsGranted.join(', ') : 'none'}</code>
+                                                        </div>
+                                                        {delegateTrace.toolCallsExecuted.length > 0 && (
+                                                            <div className="delegate-trace-section">
+                                                                <span>tool calls</span>
+                                                                {delegateTrace.toolCallsExecuted.map((call, idx) => (
+                                                                    <code key={`${call.id || call.name || idx}`}>{call.name || 'unknown'} {call.argumentsText}</code>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {delegateTrace.toolsDenied.length > 0 && (
+                                                            <div className="delegate-trace-section">
+                                                                <span>denied</span>
+                                                                {delegateTrace.toolsDenied.map((tool, idx) => (
+                                                                    <code key={`${tool.name}-${idx}`}>{tool.name}: {tool.reason}</code>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {delegateTrace.errorKind && (
+                                                            <div className="delegate-trace-row">
+                                                                <span>error</span>
+                                                                <code>{delegateTrace.errorKind}: {delegateTrace.errorMessage || ''}</code>
+                                                            </div>
+                                                        )}
+                                                        {delegateTrace.responsePreview && (
+                                                            <div className="delegate-trace-preview">{delegateTrace.responsePreview}</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {tc.result && !delegateTrace && (
                                                     <div className="result-box">
                                                         <strong>Output:</strong> {typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result, null, 2)}
                                                     </div>

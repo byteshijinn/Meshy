@@ -32,6 +32,21 @@ describe('replay unified events', () => {
                         permissionClass: 'write',
                         reason: 'blocked by policy',
                     },
+                    delegateTrace: {
+                        agentName: 'reviewer',
+                        taskName: 'review_patch',
+                        sessionId: 'delegate-reviewer-review_patch-1',
+                        success: false,
+                        toolExecution: 'read_only',
+                        toolCallLimit: 6,
+                        toolsGranted: ['readFile'],
+                        toolsDenied: [],
+                        toolCallsExecuted: [
+                            { id: 'delegate-call-1', name: 'readFile', argumentsText: '{"filePath":"a.txt"}' },
+                        ],
+                        errorKind: 'unsupported_tool_call',
+                        errorMessage: 'write blocked',
+                    },
                 },
             },
         });
@@ -58,6 +73,11 @@ describe('replay unified events', () => {
                 permissionClass: 'write',
                 reason: 'blocked by policy',
             },
+            delegateTrace: {
+                agentName: 'reviewer',
+                taskName: 'review_patch',
+                success: false,
+            },
         });
         expect(replay.events.map((event) => event.type)).toEqual([
             'agent:tool_call',
@@ -74,6 +94,12 @@ describe('replay unified events', () => {
             type: 'agent:tool_result',
             toolCallId: 'tool-call-1',
             isError: true,
+            delegateTrace: {
+                agentName: 'reviewer',
+                toolCallsExecuted: [
+                    { id: 'delegate-call-1', name: 'readFile', argumentsText: '{"filePath":"a.txt"}' },
+                ],
+            },
         });
         expect(replay.events.find((event) => event.type === 'agent:policy_decision')).toMatchObject({
             type: 'agent:policy_decision',

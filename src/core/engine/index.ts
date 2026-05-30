@@ -20,7 +20,7 @@ import { ToolRegistry, createDefaultRegistry, defineTool } from '../tool/index.j
 import { createDefaultToolPackRegistry } from '../tool/tool-pack.js';
 import { z } from 'zod';
 import { loadConfig } from '../../config/index.js';
-import { executeDelegate } from '../tool/delegate-tool.js';
+import { createDelegateTrace, executeDelegate } from '../tool/delegate-tool.js';
 import { formatSubagentManagerPrompt } from '../subagents/prompt.js';
 import { Workspace } from '../workspace/workspace.js';
 import { WorkerAgent } from './worker.js';
@@ -1200,7 +1200,14 @@ export class TaskEngine {
                     const executionPromises = pendingToolCalls.map(async (call) => {
                         const parsedArgs = call.rawArgs ? JSON.parse(call.rawArgs) : {};
                         const resultObj = await this.executeTool(call.id, call.name, parsedArgs, injection.subagent?.allowedTools);
-                        this.daemon?.broadcast('agent:tool_result', { id: call.id, name: call.name, result: resultObj.output, isError: resultObj.isError });
+                        this.daemon?.broadcast('agent:tool_result', {
+                            id: call.id,
+                            name: call.name,
+                            result: resultObj.output,
+                            isError: resultObj.isError,
+                            metadata: resultObj.metadata,
+                            delegateTrace: (resultObj.metadata as Record<string, unknown> | undefined)?.delegateTrace,
+                        });
                         return { id: call.id, result: resultObj.output, isError: resultObj.isError, metadata: resultObj.metadata };
                     });
 
@@ -1426,7 +1433,13 @@ export class TaskEngine {
                     workspaceRoot: self.workspace.rootPath,
                     abortSignal: self.abortController?.signal,
                 });
-                return { output: JSON.stringify(result) };
+                return {
+                    output: JSON.stringify(result),
+                    isError: !result.success,
+                    metadata: {
+                        delegateTrace: createDelegateTrace(result),
+                    },
+                };
             },
         }));
 
@@ -1522,14 +1535,17 @@ export class TaskEngine {
                 session: this.session, // 注入 Session 供按需工具 (useTool) 修改挂载状态
             });
 
+            const metadata = result.metadata as Record<string, unknown> | undefined;
             this.daemon?.broadcast('agent:tool_result', {
                 id,
                 tool: name,
                 success: !result.isError,
-                policyDecision: (result.metadata as Record<string, unknown> | undefined)?.policyDecision,
+                policyDecision: metadata?.policyDecision,
+                delegateTrace: metadata?.delegateTrace,
+                metadata,
             });
 
-            const policyDecision = (result.metadata as Record<string, unknown> | undefined)?.policyDecision as Record<string, unknown> | undefined;
+            const policyDecision = metadata?.policyDecision as Record<string, unknown> | undefined;
             if (policyDecision) {
                 this.daemon?.broadcast('agent:policy_decision', {
                     id,

@@ -19,6 +19,7 @@ export function upsertToolCallById(existing: ToolCallInfo[], patch: ToolCallPatc
       status: patch.status || 'running',
       result: patch.result,
       approvalReason: patch.approvalReason,
+      delegateTrace: patch.delegateTrace,
       policyDecision: patch.policyDecision,
     },
   ]

@@ -30,6 +30,34 @@ describe('tool-call linking helpers', () => {
     expect(list[0]?.policyDecision?.decision).toBe('deny')
   })
 
+  it('preserves delegate traces on repeated tool result updates', () => {
+    let list: ToolCallInfo[] = []
+
+    list = upsertToolCallById(list, {
+      id: 'delegate-1',
+      name: 'delegateToAgent',
+      status: 'done',
+      delegateTrace: {
+        agentName: 'reviewer',
+        success: true,
+        toolsGranted: ['readFile'],
+        toolsDenied: [],
+        toolCallsExecuted: [
+          { id: 'sub-call', name: 'readFile', argumentsText: '{"filePath":"src/index.ts"}' },
+        ],
+      },
+    })
+
+    list = upsertToolCallById(list, {
+      id: 'delegate-1',
+      result: '{"success":true}',
+      status: 'done',
+    })
+
+    expect(list[0]?.delegateTrace?.agentName).toBe('reviewer')
+    expect(list[0]?.delegateTrace?.toolCallsExecuted[0]?.name).toBe('readFile')
+  })
+
   it('fallback tool-name error matching updates only the most recent running call', () => {
     const initial: ToolCallInfo[] = [
       { id: 'a', name: 'runCommand', args: 'echo a', status: 'running' },

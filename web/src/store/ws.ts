@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { sortPolicyDecisionsNewestFirst } from './policy-decision-ui.js';
 import type { RpcMessage, RpcMethod, RpcParams, RpcResult } from '../../../src/core/rpc/contract.js';
+import type { DelegateTracePayload } from '../../../src/shared/delegate-trace.js';
 
 export type { RpcMessage } from '../../../src/core/rpc/contract.js';
 
@@ -22,6 +23,7 @@ export interface ToolCallInfo {
     result?: string;
     status: 'running' | 'done' | 'error';
     approvalReason?: string;
+    delegateTrace?: DelegateTracePayload;
     policyDecision?: {
         decision: 'allow' | 'deny';
         mode: string;

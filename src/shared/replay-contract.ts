@@ -1,3 +1,5 @@
+import type { DelegateTracePayload } from './delegate-trace.js';
+
 export interface ReplayStep {
     index: number;
     timestamp: string;
@@ -33,6 +35,7 @@ export type ReplayStepProjection =
         content: string;
         isError: boolean;
         policyDecision?: ReplayStepPolicyDecisionSnapshot;
+        delegateTrace?: DelegateTracePayload;
     };
 
 export type ReplayEvent =
@@ -56,6 +59,7 @@ export type ReplayEvent =
         toolName: string;
         content: string;
         isError: boolean;
+        delegateTrace?: DelegateTracePayload;
     }
     | {
         type: 'agent:policy_decision';

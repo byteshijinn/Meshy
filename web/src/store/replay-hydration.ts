@@ -62,6 +62,7 @@ function eventReplayToMessages(replay: ReplayExport): { messages: ChatMessage[];
         if (matched) {
           matched.result = event.content
           matched.status = event.isError ? 'error' : 'done'
+          matched.delegateTrace = event.delegateTrace
         }
       }
       continue
@@ -148,6 +149,7 @@ export function replayToMessages(replay: ReplayExport): ChatMessage[] {
         if (matchedTc) {
           matchedTc.result = resultText
           matchedTc.status = projection?.kind === 'tool_result' && projection.isError ? 'error' : 'done'
+          matchedTc.delegateTrace = projection?.kind === 'tool_result' ? projection.delegateTrace : undefined
           matchedTc.policyDecision = projection?.kind === 'tool_result' && projection.policyDecision
             ? {
               ...projection.policyDecision,

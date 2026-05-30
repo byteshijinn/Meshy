@@ -1,4 +1,5 @@
 import type { ReplayEvent } from './replay-contract.js';
+import { normalizeDelegateTracePayload } from './delegate-trace.js';
 
 export function normalizeReplayEvents(
     events: ReadonlyArray<unknown> | undefined,
@@ -37,6 +38,7 @@ export function normalizeReplayEvents(
         }
 
         if (type === 'agent:tool_result' || type === 'tool_result') {
+            const delegateTrace = normalizeDelegateTracePayload(event.delegateTrace);
             normalized.push({
                 type: 'agent:tool_result',
                 timestamp: String(event.timestamp ?? fallbackTimestamp),
@@ -44,6 +46,7 @@ export function normalizeReplayEvents(
                 toolName: String(event.toolName ?? 'unknown_tool'),
                 content: String(event.content ?? ''),
                 isError: Boolean(event.isError),
+                ...(delegateTrace ? { delegateTrace } : {}),
             });
             continue;
         }

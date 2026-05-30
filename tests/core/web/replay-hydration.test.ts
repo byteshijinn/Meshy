@@ -106,6 +106,77 @@ describe('replay hydration', () => {
         expect(hydrated.policyDecisions[0]?.permissionClass).toBe('write');
     });
 
+    it('hydrates delegate traces from replay tool-result events', () => {
+        const replay: ReplayExport = {
+            sessionId: 'session-delegate',
+            exportedAt: '2026-04-04T00:00:00.000Z',
+            totalSteps: 0,
+            steps: [],
+            events: [
+                {
+                    type: 'agent:tool_call',
+                    timestamp: '2026-04-04T00:00:00.000Z',
+                    toolCallId: 'delegate-call',
+                    toolName: 'delegateToAgent',
+                    argumentsText: '{"agentName":"reviewer"}',
+                },
+                {
+                    type: 'agent:tool_result',
+                    timestamp: '2026-04-04T00:00:01.000Z',
+                    toolCallId: 'delegate-call',
+                    toolName: 'delegateToAgent',
+                    content: '{"success":true}',
+                    isError: false,
+                    delegateTrace: {
+                        agentName: 'reviewer',
+                        taskName: 'review_patch',
+                        sessionId: 'delegate-reviewer-review_patch-1',
+                        success: true,
+                        toolExecution: 'read_only',
+                        toolCallLimit: 6,
+                        toolsGranted: ['readFile'],
+                        toolsDenied: [],
+                        toolCallsExecuted: [
+                            { id: 'sub-call-1', name: 'readFile', argumentsText: '{"filePath":"src/index.ts"}' },
+                        ],
+                        responsePreview: 'no findings',
+                    },
+                },
+            ],
+            blackboard: {
+                currentGoal: '',
+                tasks: [],
+                openFiles: [],
+                lastError: null,
+            },
+            policyDecisions: [],
+            runtimeDecisions: [],
+            metrics: {
+                messageCountByRole: { system: 0, user: 0, assistant: 0, tool: 0 },
+                textMessages: 0,
+                toolCalls: 0,
+                toolResults: 0,
+                totalTextCharacters: 0,
+                uniqueTools: [],
+            },
+            session: {
+                status: 'active',
+                activeAgentId: 'default',
+                messageCount: 0,
+            },
+        };
+
+        const hydrated = hydrateReplayView(replay);
+
+        expect(hydrated.messages[0]?.toolCalls?.[0]?.delegateTrace).toMatchObject({
+            agentName: 'reviewer',
+            taskName: 'review_patch',
+            toolCallsExecuted: [
+                { id: 'sub-call-1', name: 'readFile', argumentsText: '{"filePath":"src/index.ts"}' },
+            ],
+        });
+    });
+
     it('prefers unified replay events when present', () => {
         const replay: ReplayExport = {
             sessionId: 'session-2',

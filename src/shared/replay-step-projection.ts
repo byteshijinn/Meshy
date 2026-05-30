@@ -1,4 +1,5 @@
 import type { ReplayStep, ReplayStepPolicyDecisionSnapshot, ReplayStepProjection } from './replay-contract.js';
+import { normalizeDelegateTracePayload } from './delegate-trace.js';
 
 const isPolicyDecisionSnapshot = (value: unknown): value is ReplayStepPolicyDecisionSnapshot => {
     if (!value || typeof value !== 'object') return false;
@@ -41,6 +42,7 @@ export const getReplayStepProjection = (step: ReplayStep): ReplayStepProjection 
             content: typeof raw?.content === 'string' ? raw.content : step.summary.replace(/^Result:\s*/, ''),
             isError: Boolean(raw?.isError),
             policyDecision: isPolicyDecisionSnapshot(metadata?.policyDecision) ? metadata.policyDecision : undefined,
+            delegateTrace: normalizeDelegateTracePayload(metadata?.delegateTrace),
         };
     }
 

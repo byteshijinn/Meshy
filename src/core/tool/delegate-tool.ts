@@ -7,6 +7,7 @@ import { AgentMessageEvent, ILLMProvider, StandardPrompt, StandardTool } from '.
 import { formatDelegateTaskBlock } from '../subagents/prompt.js';
 import type { ToolResult } from './define.js';
 import type { ToolPermissionClass } from './manifest.js';
+import { createDelegateTracePayload, type DelegateTracePayload } from '../../shared/delegate-trace.js';
 
 const BASE_SUBAGENT_PROMPT = [
     'You are a specialized sub-agent running with pruned context.',
@@ -95,6 +96,23 @@ export function normalizeDelegateTaskName(taskName: string | undefined): string 
         .replace(/_+$/g, '');
 
     return normalized || undefined;
+}
+
+export function createDelegateTrace(result: DelegateResult): DelegateTracePayload {
+    return createDelegateTracePayload({
+        agentName: result.agentName,
+        taskName: result.taskName,
+        sessionId: result.sessionId,
+        success: result.success,
+        toolExecution: result.toolExecution,
+        toolCallLimit: result.toolCallLimit,
+        toolsGranted: result.toolsGranted,
+        toolsDenied: result.toolsDenied,
+        toolCallsExecuted: result.toolCallsExecuted,
+        errorKind: result.error?.kind,
+        errorMessage: result.error?.message,
+        responsePreview: result.response.slice(0, 1000),
+    });
 }
 
 export async function executeDelegate(

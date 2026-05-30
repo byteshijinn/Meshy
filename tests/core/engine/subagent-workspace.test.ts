@@ -103,7 +103,7 @@ describe('TaskEngine subagent registry', () => {
         activeSession.addMessage({ role: 'user', content: 'fresh context' });
         engine.setSession(activeSession);
 
-        await engine.getToolRegistry().execute('delegateToAgent', {
+        const result = await engine.getToolRegistry().execute('delegateToAgent', {
             agentName: 'reviewer',
             taskDescription: 'Review current context.',
         }, {
@@ -114,5 +114,11 @@ describe('TaskEngine subagent registry', () => {
 
         expect(capturedPrompt?.messages.map((message) => message.content)).toContain('fresh context');
         expect(capturedPrompt?.messages.map((message) => message.content)).not.toContain('old context');
+        expect(result.metadata?.delegateTrace).toMatchObject({
+            agentName: 'reviewer',
+            success: true,
+            toolExecution: 'read_only',
+            responsePreview: 'done',
+        });
     });
 });

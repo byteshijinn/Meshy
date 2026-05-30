@@ -840,6 +840,70 @@ option {
   white-space: pre-wrap;
 }
 
+.delegate-trace-box {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(96, 165, 250, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  word-break: break-word;
+}
+
+.delegate-trace-header,
+.delegate-trace-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.delegate-trace-status {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+}
+
+.delegate-trace-status.success {
+  color: var(--accent);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.delegate-trace-status.error {
+  color: var(--error);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.delegate-trace-muted {
+  color: var(--text-muted);
+}
+
+.delegate-trace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.delegate-trace-section > span,
+.delegate-trace-row > span {
+  color: var(--text-muted);
+}
+
+.delegate-trace-section code,
+.delegate-trace-row code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.delegate-trace-preview {
+  padding-top: 6px;
+  border-top: 1px dotted var(--border-subtle);
+  white-space: pre-wrap;
+}
+
 .tool-approval-notice {
   font-size: 11px;
   color: var(--text-muted);
