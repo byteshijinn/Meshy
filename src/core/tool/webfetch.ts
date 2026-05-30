@@ -2,8 +2,12 @@ import { z } from 'zod';
 import { defineTool } from './define.js';
 import { fetch, ProxyAgent, RequestInit } from 'undici';
 import TurndownService from 'turndown';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB limit matching opencode
+const MAX_INLINE_OUTPUT_CHARS = 120_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 function getProxyAgent(): ProxyAgent | undefined {
@@ -48,6 +52,39 @@ function convertToText(html: string): string {
         .trim();
 }
 
+function offloadLargeOutput(content: string, url: string, workspaceRoot: string): {
+    output: string;
+    savedTo?: string;
+    savedToRelative?: string;
+    truncated: boolean;
+} {
+    if (content.length <= MAX_INLINE_OUTPUT_CHARS) {
+        return { output: content, truncated: false };
+    }
+
+    const tmpDir = path.join(workspaceRoot, '.meshy', 'tmp');
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    const urlHash = crypto.createHash('sha1').update(url).digest('hex').slice(0, 12);
+    const savedToRelative = path.join('.meshy', 'tmp', `webfetch-${Date.now()}-${urlHash}.txt`);
+    const savedTo = path.join(workspaceRoot, savedToRelative);
+    fs.writeFileSync(savedTo, content, 'utf8');
+
+    const preview = content.slice(0, MAX_INLINE_OUTPUT_CHARS);
+    return {
+        output: [
+            preview,
+            '',
+            '...[CONTENT TRUNCATED]...',
+            `The full fetched content (${content.length} chars) was saved to ${savedToRelative}.`,
+            `Use readFile with filePath="${savedToRelative}" to inspect the remaining content.`,
+        ].join('\n'),
+        savedTo,
+        savedToRelative,
+        truncated: true,
+    };
+}
+
 export const WebFetchTool = defineTool('webfetch', {
     description: [
         'Fetch the content of a URL and return it in the requested format.',
@@ -61,7 +98,7 @@ export const WebFetchTool = defineTool('webfetch', {
     manifest: {
         permissionClass: 'network',
     },
-    async execute(params) {
+    async execute(params, ctx) {
         try {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
@@ -105,13 +142,17 @@ export const WebFetchTool = defineTool('webfetch', {
                     finalOutput = convertToText(html);
                 }
             }
+            const offloaded = offloadLargeOutput(finalOutput, params.url, ctx.workspaceRoot);
 
             return {
-                output: finalOutput,
+                output: offloaded.output,
                 metadata: {
                     contentType,
                     format: params.format,
-                    length: finalOutput.length
+                    length: finalOutput.length,
+                    truncated: offloaded.truncated,
+                    savedTo: offloaded.savedTo,
+                    savedToRelative: offloaded.savedToRelative,
                 },
             };
         } catch (err: any) {
