@@ -77,4 +77,69 @@ describe('executeDelegate', () => {
         expect(capturedPrompt?.systemPrompt).toContain('Return a valid JSON object');
         expect(capturedPrompt?.tools.map((t) => t.name)).toEqual(['readFile']);
     });
+
+    it('fails closed when a delegated model requests unsupported tool calls', async () => {
+        const result = await executeDelegate(
+            {
+                agentName: 'reviewer',
+                taskDescription: 'Read src/index.ts and summarize risks.',
+            },
+            {
+                subagentRegistry: {
+                    getAgent: () => baseAgent,
+                    listAgents: () => [baseAgent],
+                } as any,
+                providerResolver: {
+                    getProvider: () => ({
+                        generateResponseStream: async (_prompt: StandardPrompt, onEvent: (event: any) => void) => {
+                            onEvent({ type: 'tool_call_start', data: { id: 'call-1', name: 'readFile' } });
+                            onEvent({ type: 'tool_call_chunk', data: '{"filePath":"src/index.ts"}' });
+                            onEvent({ type: 'tool_call_end' });
+                        },
+                    }),
+                } as any,
+                toolRegistry: {
+                    toStandardTools: () => [
+                        { name: 'readFile', description: 'Read file', inputSchema: {} },
+                    ],
+                } as any,
+                parentSession: new Session('parent'),
+            },
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error?.kind).toBe('unsupported_tool_call');
+        expect(result.error?.toolCalls).toEqual([
+            { id: 'call-1', name: 'readFile', argumentsText: '{"filePath":"src/index.ts"}' },
+        ]);
+        expect(result.response).toContain('single-turn text reports only');
+    });
+
+    it('classifies empty delegated model responses as failures', async () => {
+        const result = await executeDelegate(
+            {
+                agentName: 'reviewer',
+                taskDescription: 'Return a report.',
+            },
+            {
+                subagentRegistry: {
+                    getAgent: () => baseAgent,
+                    listAgents: () => [baseAgent],
+                } as any,
+                providerResolver: {
+                    getProvider: () => ({
+                        generateResponseStream: async () => undefined,
+                    }),
+                } as any,
+                toolRegistry: {
+                    toStandardTools: () => [],
+                } as any,
+                parentSession: new Session('parent'),
+            },
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.error?.kind).toBe('empty_response');
+        expect(result.response).toBe('Delegate completed without returning text.');
+    });
 });
