@@ -6,6 +6,7 @@ dist/
 *.log
 package-lock.json
 docs/
+tmp/
 AGENTS.md
 tests/
 test-*/
