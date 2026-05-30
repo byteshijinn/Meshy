@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { sendRpc, useEvent, type RpcMessage } from '../store/ws'
-import { Settings, Plus, MessageSquare } from 'lucide-react'
+import { Settings, Plus, MessageSquare, Edit2, Trash2, X } from 'lucide-react'
+import { getSessionDisplayTitle, removeSessionFromList, renameSessionInList } from './session-list-utils'
 
 interface SessionInfo {
     id: string;
@@ -15,14 +16,16 @@ interface Props {
     connected: boolean;
     activeSessionId: string | null;
     onSessionSwitch?: (sessionId: string, title?: string) => void;
+    onSessionRenamed?: (sessionId: string, title: string) => void;
     onSettingsOpen?: () => void;
 }
 
-export function LeftSidebar({ connected, activeSessionId, onSessionSwitch, onSettingsOpen }: Props) {
+export function LeftSidebar({ connected, activeSessionId, onSessionSwitch, onSessionRenamed, onSettingsOpen }: Props) {
     const [sessions, setSessions] = useState<SessionInfo[]>([])
     // Removed local activeSession state
     const [workspaces, setWorkspaces] = useState<string[]>([])
     const [activeWorkspace, setActiveWorkspace] = useState<string>('')
+    const [busySessionId, setBusySessionId] = useState<string | null>(null)
 
     const refreshSessions = useCallback(() => {
         sendRpc<{ sessions: SessionInfo[] }>('session:list').then((res) => {
@@ -68,6 +71,50 @@ export function LeftSidebar({ connected, activeSessionId, onSessionSwitch, onSet
     const handleSwitchSession = useCallback((sessionId: string, title?: string) => {
         onSessionSwitch?.(sessionId, title)
     }, [onSessionSwitch])
+
+    const handleRenameSession = useCallback(async (e: React.MouseEvent, target: SessionInfo) => {
+        e.stopPropagation()
+        const nextTitle = window.prompt('Rename session', getSessionDisplayTitle(target))
+        if (nextTitle === null) return
+
+        const trimmedTitle = nextTitle.trim()
+        if (!trimmedTitle) return
+
+        setBusySessionId(target.id)
+        try {
+            const res = await sendRpc<{ success: boolean; error?: string }>('session:rename', {
+                id: target.id,
+                title: trimmedTitle,
+            })
+            if (!res.success) throw new Error(res.error || 'Rename failed')
+
+            setSessions(prev => renameSessionInList(prev, target.id, trimmedTitle))
+            onSessionRenamed?.(target.id, trimmedTitle)
+            refreshSessions()
+        } catch (err: any) {
+            alert(`Failed to rename session: ${err.message}`)
+        } finally {
+            setBusySessionId(null)
+        }
+    }, [onSessionRenamed, refreshSessions])
+
+    const handleDeleteSession = useCallback(async (e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation()
+        if (!window.confirm('Delete this session? This action cannot be undone.')) return
+
+        setBusySessionId(sessionId)
+        try {
+            const res = await sendRpc<{ success: boolean; error?: string }>('session:delete', { id: sessionId })
+            if (!res.success) throw new Error(res.error || 'Delete failed')
+
+            setSessions(prev => removeSessionFromList(prev, sessionId))
+            refreshSessions()
+        } catch (err: any) {
+            alert(`Failed to delete session: ${err.message}`)
+        } finally {
+            setBusySessionId(null)
+        }
+    }, [refreshSessions])
 
     const formatTime = (iso: string) => {
         if (!iso || iso === 'unknown') return ''
@@ -131,7 +178,7 @@ export function LeftSidebar({ connected, activeSessionId, onSessionSwitch, onSet
                     {activeWorkspace && (
                         <button
                             className="icon-button"
-                            title="Delete this workspace"
+                            title="Remove this workspace"
                             onClick={async () => {
                                 if (window.confirm(`Are you sure you want to remove workspace: ${activeWorkspace}?`)) {
                                     const res = await sendRpc<{ success: boolean; error?: string }>('workspace:remove', { path: activeWorkspace })
@@ -151,7 +198,7 @@ export function LeftSidebar({ connected, activeSessionId, onSessionSwitch, onSet
                                 color: 'var(--text-muted)'
                             }}
                         >
-                            ✕
+                            <X size={14} />
                         </button>
                     )}
                 </div>
@@ -177,11 +224,31 @@ export function LeftSidebar({ connected, activeSessionId, onSessionSwitch, onSet
                         <MessageSquare size={14} />
                         <div className="session-item-content">
                             <div className="session-item-title">
-                                {s.title ? s.title : (s.goal && s.goal !== '(no goal)' ? s.goal : s.id.slice(0, 12) + '...')}
+                                {getSessionDisplayTitle(s)}
                             </div>
                             <div className="session-item-date">
                                 {formatTime(s.updatedAt)}
                             </div>
+                        </div>
+                        <div className="session-item-actions">
+                            <button
+                                type="button"
+                                className="session-action-btn"
+                                title="Rename session"
+                                disabled={busySessionId === s.id}
+                                onClick={(e) => handleRenameSession(e, s)}
+                            >
+                                <Edit2 size={12} />
+                            </button>
+                            <button
+                                type="button"
+                                className="session-action-btn danger"
+                                title="Delete session"
+                                disabled={busySessionId === s.id}
+                                onClick={(e) => handleDeleteSession(e, s.id)}
+                            >
+                                <Trash2 size={12} />
+                            </button>
                         </div>
                     </div>
                 ))}

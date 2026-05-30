@@ -119,6 +119,14 @@ function App() {
     })
   }, [])
 
+  const handleSidebarSessionRenamed = useCallback((sessionId: string, title: string) => {
+    setActiveSession(prev => (
+      prev?.id === sessionId
+        ? { ...prev, title }
+        : prev
+    ))
+  }, [])
+
   // 接收 Agent 流式文本
   useEvent('agent:text', (msg: RpcMessage) => {
     const chunk = msg.data as { text: string; id: string; replace?: boolean }
@@ -445,6 +453,7 @@ function App() {
         connected={connected}
         activeSessionId={activeSession?.id || null}
         onSessionSwitch={handleSessionSwitch}
+        onSessionRenamed={handleSidebarSessionRenamed}
         onSettingsOpen={() => setShowSettings(true)}
       />
       <div className="center-panel">

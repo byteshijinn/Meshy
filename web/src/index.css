@@ -1929,6 +1929,54 @@ option {
   opacity: 0.8;
 }
 
+.session-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.session-item:hover .session-item-actions,
+.session-item:focus-within .session-item-actions {
+  opacity: 1;
+}
+
+.session-action-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.session-action-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.session-action-btn.danger:hover {
+  color: #ff5f5f;
+  border-color: rgba(255, 95, 95, 0.25);
+  background: rgba(255, 95, 95, 0.08);
+}
+
+.session-action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.session-item-actions svg {
+  margin-top: 0;
+}
+
 .settings-overlay {
   position: fixed;
   inset: 0;
