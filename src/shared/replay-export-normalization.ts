@@ -4,6 +4,7 @@ import type {
     ReplayExport,
     ReplayMetrics,
     ReplayPolicyDecisionRecord,
+    ReplayRuntimeTaskRecord,
     ReplaySessionSummary,
     ReplayStep,
 } from './replay-contract.js';
@@ -32,6 +33,36 @@ const defaultSession = (value: Record<string, unknown> | undefined, steps: Repla
     messageCount: typeof value?.messageCount === 'number' ? value.messageCount : steps.length,
 });
 
+const normalizeRuntimeTasks = (value: unknown): ReplayRuntimeTaskRecord[] => {
+    if (!Array.isArray(value)) return [];
+
+    return value.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        const task = item as Record<string, unknown>;
+        if (
+            typeof task.id !== 'string'
+            || typeof task.description !== 'string'
+            || typeof task.status !== 'string'
+        ) {
+            return [];
+        }
+
+        return [{
+            id: task.id,
+            description: task.description,
+            status: task.status,
+            createdAt: typeof task.createdAt === 'string' ? task.createdAt : '',
+            updatedAt: typeof task.updatedAt === 'string' ? task.updatedAt : '',
+            kind: typeof task.kind === 'string' ? task.kind : undefined,
+            parentTaskId: typeof task.parentTaskId === 'string' ? task.parentTaskId : undefined,
+            errorMessage: typeof task.errorMessage === 'string' ? task.errorMessage : undefined,
+            metadata: task.metadata && typeof task.metadata === 'object' && !Array.isArray(task.metadata)
+                ? { ...(task.metadata as Record<string, unknown>) }
+                : undefined,
+        }];
+    });
+};
+
 export function normalizeReplayExport(
     value: unknown,
     options: {
@@ -54,6 +85,7 @@ export function normalizeReplayExport(
         steps,
         events,
         runtimeDecisions: Array.isArray(replay.runtimeDecisions) ? replay.runtimeDecisions as ReplayExport['runtimeDecisions'] : [],
+        runtimeTasks: normalizeRuntimeTasks(replay.runtimeTasks),
         policyDecisions,
         metrics: replay.metrics && typeof replay.metrics === 'object' ? replay.metrics as ReplayMetrics : defaultMetrics(),
         blackboard: defaultBlackboard(replay.blackboard as Record<string, unknown> | undefined),

@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { TaskEngine } from '../../../src/core/engine/index.js';
+import { exportReplay } from '../../../src/core/session/replay.js';
 import { Session } from '../../../src/core/session/state.js';
 import type { ILLMProvider, StandardPrompt } from '../../../src/core/llm/provider.js';
 
@@ -119,6 +120,29 @@ describe('TaskEngine subagent registry', () => {
             success: true,
             toolExecution: 'read_only',
             responsePreview: 'done',
+        });
+        expect(result.metadata?.runtimeTaskId).toEqual(expect.stringMatching(/^task-/));
+        expect(activeSession.runtimeTasks).toHaveLength(1);
+        expect(activeSession.runtimeTasks[0]).toMatchObject({
+            id: result.metadata?.runtimeTaskId,
+            kind: 'delegate',
+            description: '@agent:reviewer',
+            status: 'completed',
+            metadata: {
+                agentName: 'reviewer',
+                delegateTrace: {
+                    agentName: 'reviewer',
+                    success: true,
+                    responsePreview: 'done',
+                },
+            },
+        });
+
+        const replay = exportReplay(activeSession);
+        expect(replay.runtimeTasks?.[0]).toMatchObject({
+            id: result.metadata?.runtimeTaskId,
+            kind: 'delegate',
+            status: 'completed',
         });
     });
 });

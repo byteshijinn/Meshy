@@ -20,7 +20,7 @@ import { ToolRegistry, createDefaultRegistry, defineTool } from '../tool/index.j
 import { createDefaultToolPackRegistry } from '../tool/tool-pack.js';
 import { z } from 'zod';
 import { loadConfig } from '../../config/index.js';
-import { createDelegateTrace, executeDelegate } from '../tool/delegate-tool.js';
+import { createDelegateTrace, executeDelegate, type DelegateResult } from '../tool/delegate-tool.js';
 import { formatSubagentManagerPrompt } from '../subagents/prompt.js';
 import { Workspace } from '../workspace/workspace.js';
 import { WorkerAgent } from './worker.js';
@@ -35,7 +35,7 @@ import { CustomCommandRegistry } from '../commands/loader.js';
 import { RitualLoader } from '../ritual/loader.js';
 import { exportReplay, saveReplay, formatReplayText } from '../session/replay.js';
 import { SessionHealthInspector } from '../session/health-check.js';
-import { normalizeAgentMessageEvent } from '../runtime/protocol.js';
+import { createRuntimeTaskId, normalizeAgentMessageEvent } from '../runtime/protocol.js';
 
 export interface EngineOptions {
     maxRetries?: number;
@@ -1425,19 +1425,83 @@ export class TaskEngine {
                 expectedOutput: z.string().optional().describe('Optional description of the exact report shape or evidence the manager needs back'),
             }),
             async execute(args) {
-                const result = await executeDelegate(args, {
-                    subagentRegistry,
-                    providerResolver,
-                    toolRegistry: toolRegistryRef,
-                    parentSession: self.session,
-                    workspaceRoot: self.workspace.rootPath,
-                    abortSignal: self.abortController?.signal,
+                const runtimeTaskId = createRuntimeTaskId();
+                const createdAt = new Date().toISOString();
+                const description = `@agent:${args.agentName}${args.taskName ? ` ${args.taskName}` : ''}`;
+                self.session.upsertRuntimeTask({
+                    id: runtimeTaskId,
+                    kind: 'delegate',
+                    description,
+                    status: 'running',
+                    createdAt,
+                    updatedAt: createdAt,
+                    metadata: {
+                        agentName: args.agentName,
+                        taskName: args.taskName,
+                        taskDescription: args.taskDescription,
+                        expectedOutput: args.expectedOutput,
+                    },
+                });
+
+                let result: DelegateResult;
+                try {
+                    result = await executeDelegate(args, {
+                        subagentRegistry,
+                        providerResolver,
+                        toolRegistry: toolRegistryRef,
+                        parentSession: self.session,
+                        workspaceRoot: self.workspace.rootPath,
+                        abortSignal: self.abortController?.signal,
+                    });
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    self.session.upsertRuntimeTask({
+                        id: runtimeTaskId,
+                        kind: 'delegate',
+                        description,
+                        status: 'failed',
+                        createdAt,
+                        updatedAt: new Date().toISOString(),
+                        errorMessage: message,
+                        metadata: {
+                            agentName: args.agentName,
+                            taskName: args.taskName,
+                            taskDescription: args.taskDescription,
+                            expectedOutput: args.expectedOutput,
+                        },
+                    });
+                    throw err;
+                }
+
+                const delegateTrace = createDelegateTrace(result);
+                self.session.upsertRuntimeTask({
+                    id: runtimeTaskId,
+                    kind: 'delegate',
+                    description,
+                    status: result.success ? 'completed' : 'failed',
+                    createdAt,
+                    updatedAt: new Date().toISOString(),
+                    errorMessage: result.error?.message,
+                    metadata: {
+                        agentName: result.agentName,
+                        taskName: result.taskName,
+                        delegateSessionId: result.sessionId,
+                        taskDescription: args.taskDescription,
+                        expectedOutput: args.expectedOutput,
+                        toolExecution: result.toolExecution,
+                        toolCallLimit: result.toolCallLimit,
+                        toolsGranted: result.toolsGranted ?? [],
+                        toolsDenied: result.toolsDenied ?? [],
+                        toolCallsExecuted: result.toolCallsExecuted ?? [],
+                        delegateTrace,
+                    },
                 });
                 return {
                     output: JSON.stringify(result),
                     isError: !result.success,
                     metadata: {
-                        delegateTrace: createDelegateTrace(result),
+                        delegateTrace,
+                        runtimeTaskId,
                     },
                 };
             },

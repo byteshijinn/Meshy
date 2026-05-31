@@ -69,4 +69,32 @@ describe('Session', () => {
         expect(restored.runtimeDecisions).toHaveLength(1);
         expect(restored.runtimeDecisions[0]?.reasonSummary).toBe('test runtime decision');
     });
+
+    it('persists runtime task records through serialization', () => {
+        const session = new Session('runtime-tasks-session');
+        session.upsertRuntimeTask({
+            id: 'task-delegate-1',
+            kind: 'delegate',
+            description: '@agent:reviewer inspect state',
+            status: 'completed',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:01.000Z',
+            metadata: {
+                agentName: 'reviewer',
+            },
+        });
+
+        const serialized = session.serialize();
+        const restored = Session.deserialize(serialized);
+
+        expect(restored.runtimeTasks).toHaveLength(1);
+        expect(restored.runtimeTasks[0]).toMatchObject({
+            id: 'task-delegate-1',
+            kind: 'delegate',
+            status: 'completed',
+            metadata: {
+                agentName: 'reviewer',
+            },
+        });
+    });
 });

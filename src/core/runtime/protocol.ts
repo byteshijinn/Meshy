@@ -13,6 +13,10 @@ export const RUNTIME_TASK_STATUSES = [
 
 export type RuntimeTaskStatus = typeof RUNTIME_TASK_STATUSES[number];
 
+export function isRuntimeTaskStatus(status: unknown): status is RuntimeTaskStatus {
+    return typeof status === 'string' && RUNTIME_TASK_STATUSES.includes(status as RuntimeTaskStatus);
+}
+
 export const RUNTIME_EVENT_TYPES = [
     'tool_call',
     'tool_result',

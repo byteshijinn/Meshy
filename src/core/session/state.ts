@@ -1,5 +1,6 @@
 import { StandardMessage } from '../llm/provider.js';
-import type { RuntimeTaskStatus } from '../runtime/protocol.js';
+import { isRuntimeTaskStatus, type RuntimeTaskStatus } from '../runtime/protocol.js';
+import type { RuntimeTaskRecord } from '../runtime/tasks/task-manager.js';
 import type { ToolPolicyMode } from '../tool/registry.js';
 
 export type SessionStatus = 'active' | 'suspended' | 'archived';
@@ -38,6 +39,44 @@ export interface ToolPolicyHistoryEntry {
     source: string;
 }
 
+function cloneRuntimeTaskRecord(record: RuntimeTaskRecord): RuntimeTaskRecord {
+    return {
+        ...record,
+        metadata: record.metadata ? { ...record.metadata } : undefined,
+    };
+}
+
+function normalizeRuntimeTaskRecords(value: unknown): RuntimeTaskRecord[] {
+    if (!Array.isArray(value)) return [];
+
+    return value.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+
+        const record = item as Record<string, unknown>;
+        if (
+            typeof record.id !== 'string'
+            || typeof record.description !== 'string'
+            || !isRuntimeTaskStatus(record.status)
+        ) {
+            return [];
+        }
+
+        return [cloneRuntimeTaskRecord({
+            id: record.id,
+            description: record.description,
+            status: record.status,
+            createdAt: typeof record.createdAt === 'string' ? record.createdAt : new Date().toISOString(),
+            updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : new Date().toISOString(),
+            kind: record.kind === 'delegate' || record.kind === 'generic' ? record.kind : undefined,
+            parentTaskId: typeof record.parentTaskId === 'string' ? record.parentTaskId : undefined,
+            errorMessage: typeof record.errorMessage === 'string' ? record.errorMessage : undefined,
+            metadata: record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
+                ? record.metadata as Record<string, unknown>
+                : undefined,
+        })];
+    });
+}
+
 export class Session {
     public id: string;
     public title?: string;
@@ -49,6 +88,7 @@ export class Session {
     public activeAgentId: string;
     public backgroundProcesses: BackgroundProcessState[];
     public runtimeDecisions: RuntimeDecisionRecord[];
+    public runtimeTasks: RuntimeTaskRecord[];
     public toolPolicyMode: ToolPolicyMode;
     public toolPolicyHistory: ToolPolicyHistoryEntry[];
 
@@ -83,6 +123,7 @@ export class Session {
         this.activeAgentId = 'default';
         this.backgroundProcesses = [];
         this.runtimeDecisions = [];
+        this.runtimeTasks = [];
         this.toolPolicyMode = 'standard';
         this.toolPolicyHistory = [];
     }
@@ -102,6 +143,24 @@ export class Session {
     public appendRuntimeDecision(record: RuntimeDecisionRecord): void {
         this.runtimeDecisions.push(record);
         this.touch();
+    }
+
+    public upsertRuntimeTask(record: RuntimeTaskRecord): RuntimeTaskRecord {
+        const next = cloneRuntimeTaskRecord(record);
+        const existingIndex = this.runtimeTasks.findIndex(task => task.id === next.id);
+        if (existingIndex >= 0) {
+            const existing = this.runtimeTasks[existingIndex];
+            this.runtimeTasks[existingIndex] = cloneRuntimeTaskRecord({
+                ...existing,
+                ...next,
+                createdAt: next.createdAt || existing.createdAt,
+                metadata: next.metadata ?? existing.metadata,
+            });
+        } else {
+            this.runtimeTasks.push(next);
+        }
+        this.touch();
+        return cloneRuntimeTaskRecord(this.runtimeTasks[existingIndex >= 0 ? existingIndex : this.runtimeTasks.length - 1]);
     }
 
     public updateBlackboard(updates: Partial<BlockboardState>) {
@@ -152,6 +211,7 @@ export class Session {
     public clear(): void {
         this.history = [];
         this.blackboard = { currentGoal: '', tasks: [], openFiles: [], lastError: null };
+        this.runtimeTasks = [];
         this.clearActivatedTools();
     }
 
@@ -179,6 +239,7 @@ export class Session {
             activatedMcpServers: Array.from(this.activatedMcpServers),
             backgroundProcesses: this.backgroundProcesses,
             runtimeDecisions: this.runtimeDecisions,
+            runtimeTasks: this.runtimeTasks.map(cloneRuntimeTaskRecord),
             toolPolicyMode: this.toolPolicyMode,
             toolPolicyHistory: this.toolPolicyHistory,
         };
@@ -207,6 +268,7 @@ export class Session {
                 session.activeAgentId = parsedMeta.activeAgentId || 'default';
                 session.backgroundProcesses = parsedMeta.backgroundProcesses || [];
                 session.runtimeDecisions = Array.isArray(parsedMeta.runtimeDecisions) ? parsedMeta.runtimeDecisions : [];
+                session.runtimeTasks = normalizeRuntimeTaskRecords(parsedMeta.runtimeTasks);
                 if (Array.isArray(parsedMeta.pinnedTools)) {
                     session.pinnedTools = new Set(parsedMeta.pinnedTools);
                 }
@@ -237,6 +299,7 @@ export class Session {
         session.activeAgentId = parsedMeta.activeAgentId || 'default';
         session.backgroundProcesses = parsedMeta.backgroundProcesses || [];
         session.runtimeDecisions = Array.isArray(parsedMeta.runtimeDecisions) ? parsedMeta.runtimeDecisions : [];
+        session.runtimeTasks = normalizeRuntimeTaskRecords(parsedMeta.runtimeTasks);
         if (Array.isArray(parsedMeta.pinnedTools)) {
             session.pinnedTools = new Set(parsedMeta.pinnedTools);
         }
@@ -267,6 +330,7 @@ export class Session {
                     if (row.status) session.status = row.status;
                     if (row.updatedAt) session.updatedAt = row.updatedAt;
                     if (row.title) session.title = row.title;
+                    if (row.runtimeTasks) session.runtimeTasks = normalizeRuntimeTaskRecords(row.runtimeTasks);
                 }
             } catch (e) {
                 // skip corrupted lines

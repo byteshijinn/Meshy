@@ -10,13 +10,19 @@ export interface RuntimeTaskRecord {
     status: RuntimeTaskStatus;
     createdAt: string;
     updatedAt: string;
+    kind?: 'generic' | 'delegate';
+    parentTaskId?: string;
     errorMessage?: string;
+    metadata?: Record<string, unknown>;
 }
 
 export interface CreateRuntimeTaskInput {
     id?: string;
     description: string;
     status?: RuntimeTaskStatus;
+    kind?: RuntimeTaskRecord['kind'];
+    parentTaskId?: string;
+    metadata?: Record<string, unknown>;
 }
 
 const ALLOWED_TRANSITIONS: Record<RuntimeTaskStatus, RuntimeTaskStatus[]> = {
@@ -45,19 +51,22 @@ export class RuntimeTaskManager {
             status: input.status ?? 'pending',
             createdAt: now,
             updatedAt: now,
+            kind: input.kind,
+            parentTaskId: input.parentTaskId,
+            metadata: cloneMetadata(input.metadata),
         };
 
         this.tasks.set(record.id, record);
-        return { ...record };
+        return cloneRuntimeTaskRecord(record);
     }
 
     public getTask(taskId: string): RuntimeTaskRecord | null {
         const record = this.tasks.get(taskId);
-        return record ? { ...record } : null;
+        return record ? cloneRuntimeTaskRecord(record) : null;
     }
 
     public listTasks(): RuntimeTaskRecord[] {
-        return Array.from(this.tasks.values()).map((task) => ({ ...task }));
+        return Array.from(this.tasks.values()).map(cloneRuntimeTaskRecord);
     }
 
     public transitionTask(taskId: string, nextStatus: RuntimeTaskStatus, errorMessage?: string): RuntimeTaskRecord {
@@ -84,7 +93,7 @@ export class RuntimeTaskManager {
         };
 
         this.tasks.set(taskId, updated);
-        return { ...updated };
+        return cloneRuntimeTaskRecord(updated);
     }
 
     public canTransition(from: RuntimeTaskStatus, to: RuntimeTaskStatus): boolean {
@@ -92,4 +101,15 @@ export class RuntimeTaskManager {
         if (isTerminalRuntimeTaskStatus(from)) return false;
         return ALLOWED_TRANSITIONS[from].includes(to);
     }
+}
+
+function cloneMetadata(metadata: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+    return metadata ? { ...metadata } : undefined;
+}
+
+function cloneRuntimeTaskRecord(record: RuntimeTaskRecord): RuntimeTaskRecord {
+    return {
+        ...record,
+        metadata: cloneMetadata(record.metadata),
+    };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     createRuntimeTaskId,
+    isRuntimeTaskStatus,
     isTerminalRuntimeTaskStatus,
     RUNTIME_TASK_STATUSES,
     type RuntimeApprovalRequestEvent,
@@ -20,6 +21,11 @@ describe('runtime protocol', () => {
         expect(isTerminalRuntimeTaskStatus('failed')).toBe(true);
         expect(isTerminalRuntimeTaskStatus('cancelled')).toBe(true);
         expect(isTerminalRuntimeTaskStatus('running')).toBe(false);
+    });
+
+    it('recognizes valid runtime task statuses', () => {
+        expect(isRuntimeTaskStatus('waiting_approval')).toBe(true);
+        expect(isRuntimeTaskStatus('unknown')).toBe(false);
     });
 
     it('exposes the extended runtime task status set', () => {

@@ -38,6 +38,7 @@ describe('shared replay export normalization', () => {
             },
         ]);
         expect(normalized.runtimeDecisions).toEqual([]);
+        expect(normalized.runtimeTasks).toEqual([]);
         expect(normalized.policyDecisions).toEqual([]);
         expect(normalized.metrics).toEqual({
             messageCountByRole: { system: 0, user: 0, assistant: 0, tool: 0 },

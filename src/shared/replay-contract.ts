@@ -79,6 +79,18 @@ export interface ReplayRuntimeDecisionRecord {
     reasonSummary?: string;
 }
 
+export interface ReplayRuntimeTaskRecord {
+    id: string;
+    description: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    kind?: string;
+    parentTaskId?: string;
+    errorMessage?: string;
+    metadata?: Record<string, unknown>;
+}
+
 export interface ReplayPolicyDecisionRecord {
     id: string;
     tool: string;
@@ -124,6 +136,7 @@ export interface ReplayExport {
     steps: ReplayStep[];
     events: ReplayEvent[];
     runtimeDecisions: ReplayRuntimeDecisionRecord[];
+    runtimeTasks?: ReplayRuntimeTaskRecord[];
     policyDecisions: ReplayPolicyDecisionRecord[];
     metrics: ReplayMetrics;
     blackboard: ReplayBlackboardState;

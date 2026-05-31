@@ -65,6 +65,10 @@ export function exportReplay(session: Session): ReplayExport {
         steps,
         events,
         runtimeDecisions: session.runtimeDecisions,
+        runtimeTasks: session.runtimeTasks.map(task => ({
+            ...task,
+            metadata: task.metadata ? { ...task.metadata } : undefined,
+        })),
         policyDecisions,
         metrics,
         blackboard: {

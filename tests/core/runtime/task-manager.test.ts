@@ -46,13 +46,20 @@ describe('RuntimeTaskManager', () => {
 
     it('returns immutable task snapshots', () => {
         const manager = new RuntimeTaskManager();
-        const task = manager.createTask({ description: 'immutable task' });
+        const task = manager.createTask({
+            description: 'immutable task',
+            kind: 'delegate',
+            metadata: { agentName: 'reviewer' },
+        });
 
         const listed = manager.listTasks();
         const copy = listed[0] as RuntimeTaskRecord;
         copy.description = 'mutated';
+        copy.metadata = { agentName: 'mutated' };
 
         const original = manager.getTask(task.id);
         expect(original?.description).toBe('immutable task');
+        expect(original?.kind).toBe('delegate');
+        expect(original?.metadata).toEqual({ agentName: 'reviewer' });
     });
 });
